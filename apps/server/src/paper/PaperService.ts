@@ -16,6 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
@@ -41,6 +42,7 @@ export class PaperService extends Context.Service<
   PaperService,
   {
     readonly status: (cwd: string) => Effect.Effect<PaperState, PaperError>;
+    readonly currentStatus: (cwd: string) => Effect.Effect<PaperState, PaperError>;
     readonly subscribe: (cwd: string) => Stream.Stream<PaperState, PaperError>;
     readonly build: (cwd: string) => Effect.Effect<void, PaperError>;
     readonly syncFromPdf: (
@@ -69,7 +71,8 @@ const make = Effect.gen(function* () {
   const workspaces = new Map<
     string,
     {
-      state: SubscriptionRef.SubscriptionRef<PaperState>;
+      state: SubscriptionRef.SubscriptionRef<{ paper: PaperState; completedBuild: number }>;
+      buildNumber: number;
       lock: Semaphore.Semaphore;
       sync: SyncTex | null;
       running: boolean;
@@ -166,11 +169,14 @@ const make = Effect.gen(function* () {
           ? null
           : `.t3-paper/build/${path.basename(detected.mainFile, ".tex")}.pdf`;
       const pdfPath = pdf !== null && (yield* io(fs.exists(path.join(cwd, pdf)))) ? pdf : null;
-      const state = yield* SubscriptionRef.make<PaperState>({
-        cwd,
-        ...detected,
-        build: { status: "idle", revision: 0, pdfPath, diagnostics: [] },
-        proposals,
+      const state = yield* SubscriptionRef.make<{ paper: PaperState; completedBuild: number }>({
+        paper: {
+          cwd,
+          ...detected,
+          build: { status: "idle", revision: 0, pdfPath, diagnostics: [] },
+          proposals,
+        },
+        completedBuild: 0,
       });
       const lock = yield* Semaphore.make(1);
       const sync =
@@ -181,6 +187,7 @@ const make = Effect.gen(function* () {
             );
       const entry = {
         state,
+        buildNumber: 0,
         lock,
         sync,
         running: false,
@@ -194,7 +201,7 @@ const make = Effect.gen(function* () {
 
   const persist = (entry: Workspace, proposals: ReadonlyArray<PaperProposal>) =>
     Effect.gen(function* () {
-      const state = yield* SubscriptionRef.get(entry.state);
+      const { paper: state } = yield* SubscriptionRef.get(entry.state);
       const resolved = new Set(
         proposals
           .filter((proposal) => proposal.status !== "pending")
@@ -209,12 +216,16 @@ const make = Effect.gen(function* () {
       const destination = path.join(state.cwd, ".t3-paper", "proposals.json");
       yield* io(fs.writeFileString(`${destination}.tmp`, encoded));
       yield* io(fs.rename(`${destination}.tmp`, destination));
-      yield* SubscriptionRef.update(entry.state, (current) => ({ ...current, proposals: kept }));
+      yield* SubscriptionRef.update(entry.state, (current) => ({
+        ...current,
+        paper: { ...current.paper, proposals: kept },
+      }));
     });
   const refreshProposals = (entry: Workspace) =>
     Effect.gen(function* () {
-      const state = yield* SubscriptionRef.get(entry.state);
+      const { paper: state } = yield* SubscriptionRef.get(entry.state);
       const proposals: PaperProposal[] = [];
+      const stale: PaperProposal[] = [];
       for (const proposal of state.proposals) {
         if (proposal.status !== "pending") {
           proposals.push(proposal);
@@ -222,32 +233,37 @@ const make = Effect.gen(function* () {
         }
         const source = yield* readOptional(path.join(state.cwd, proposal.file));
         const range = source === null ? undefined : originalRange(source, proposal.original);
-        proposals.push(
-          range === undefined
-            ? { ...proposal, status: "stale", boxes: [] }
-            : {
-                ...proposal,
-                startLine: range.startLine,
-                endLine: range.endLine,
-                boxes:
-                  entry.sync === null
-                    ? []
-                    : forwardSearch(entry.sync, proposal.file, range.startLine, range.endLine),
-              },
-        );
+        if (range === undefined) {
+          stale.push({ ...proposal, status: "stale", boxes: [] });
+        } else {
+          proposals.push({
+            ...proposal,
+            startLine: range.startLine,
+            endLine: range.endLine,
+            boxes:
+              entry.sync === null
+                ? []
+                : forwardSearch(entry.sync, proposal.file, range.startLine, range.endLine),
+          });
+        }
       }
-      if (proposals.length > 0) yield* persist(entry, proposals);
+      if (proposals.length + stale.length > 0) yield* persist(entry, [...proposals, ...stale]);
     }).pipe(entry.lock.withPermits(1));
 
   const compile = (entry: Workspace) =>
     Effect.gen(function* () {
-      const { cwd } = yield* SubscriptionRef.get(entry.state);
+      const {
+        paper: { cwd },
+      } = yield* SubscriptionRef.get(entry.state);
       const started = yield* Clock.currentTimeMillis;
       const detected = yield* detect(cwd);
       yield* SubscriptionRef.update(entry.state, (state) => ({
         ...state,
-        ...detected,
-        build: { ...state.build, status: "building" as const, diagnostics: [] },
+        paper: {
+          ...state.paper,
+          ...detected,
+          build: { ...state.paper.build, status: "building" as const, diagnostics: [] },
+        },
       }));
       if (detected.mainFile === null) return yield* new PaperError({ reason: "not_latex" });
       yield* prepare(cwd);
@@ -309,42 +325,52 @@ const make = Effect.gen(function* () {
       }
       const finished = yield* Clock.currentTimeMillis;
       const finishedAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso));
-      yield* SubscriptionRef.update(entry.state, (state) => ({
-        ...state,
-        build: {
-          ...state.build,
-          status: result.code === 0 ? ("succeeded" as const) : ("failed" as const),
-          revision: state.build.revision + (result.code === 0 ? 1 : 0),
-          pdfPath: result.code === 0 ? `.t3-paper/build/${stem}.pdf` : state.build.pdfPath,
-          diagnostics,
-          finishedAt,
-          durationMs: finished - started,
+      yield* SubscriptionRef.update(entry.state, ({ paper: state }) => ({
+        completedBuild: entry.buildNumber,
+        paper: {
+          ...state,
+          build: {
+            ...state.build,
+            status: result.code === 0 ? ("succeeded" as const) : ("failed" as const),
+            revision: state.build.revision + (result.code === 0 ? 1 : 0),
+            pdfPath: result.code === 0 ? `.t3-paper/build/${stem}.pdf` : state.build.pdfPath,
+            diagnostics,
+            finishedAt,
+            durationMs: finished - started,
+          },
         },
       }));
     });
-  const reportFailure = (entry: Workspace, error: PaperError) =>
-    SubscriptionRef.update(entry.state, (state) => ({
-      ...state,
-      build: {
-        ...state.build,
-        status: "failed" as const,
-        diagnostics: [{ severity: "error" as const, message: error.message, code: error.reason }],
+  const reportFailure = (entry: Workspace, error: PaperError, completedBuild?: number) =>
+    SubscriptionRef.update(entry.state, ({ paper: state, completedBuild: previous }) => ({
+      completedBuild: completedBuild ?? previous,
+      paper: {
+        ...state,
+        build: {
+          ...state.build,
+          status: "failed" as const,
+          diagnostics: [{ severity: "error" as const, message: error.message, code: error.reason }],
+        },
       },
     }));
-  const requestBuild = (entry: Workspace): Effect.Effect<void> =>
+  const requestBuild = (entry: Workspace): Effect.Effect<number> =>
     Effect.gen(function* () {
       if (entry.running) {
         entry.dirty = true;
-        return;
+        return entry.buildNumber + 1;
       }
       entry.running = true;
+      const target = ++entry.buildNumber;
       const run: Effect.Effect<void> = Effect.suspend(() =>
         compile(entry).pipe(
-          Effect.catchTags({ PaperError: (error) => reportFailure(entry, error) }),
+          Effect.catchTags({
+            PaperError: (error) => reportFailure(entry, error, entry.buildNumber),
+          }),
           Effect.andThen(
             Effect.suspend(() => {
               if (entry.dirty) {
                 entry.dirty = false;
+                entry.buildNumber++;
                 return run;
               }
               entry.running = false;
@@ -354,12 +380,27 @@ const make = Effect.gen(function* () {
         ),
       );
       yield* Effect.forkIn(run, serviceScope);
+      return target;
     });
+  const currentStatus = Effect.fnUntraced(function* (cwd: string) {
+    const entry = yield* workspace(cwd);
+    const target =
+      entry.watcher !== null && !entry.dirty ? entry.buildNumber : yield* requestBuild(entry);
+    const completed = yield* SubscriptionRef.changes(entry.state).pipe(
+      Stream.filter(
+        (state) => state.completedBuild >= target && state.paper.build.status !== "building",
+      ),
+      Stream.runHead,
+    );
+    return Option.getOrThrow(completed).paper;
+  });
   const acquireWatcher = (entry: Workspace) =>
     Effect.gen(function* () {
       entry.subscribers++;
       if (entry.subscribers > 1) return;
-      const { cwd, build } = yield* SubscriptionRef.get(entry.state);
+      const {
+        paper: { cwd, build },
+      } = yield* SubscriptionRef.get(entry.state);
       entry.watcher = yield* fs.watch(cwd, { recursive: true }).pipe(
         Stream.filter(
           (event) => !ignoredDirectory.test(event.path) && watchedExtension.test(event.path),
@@ -385,16 +426,20 @@ const make = Effect.gen(function* () {
 
   return PaperService.of({
     status: (cwd) =>
-      workspace(cwd).pipe(Effect.flatMap((entry) => SubscriptionRef.get(entry.state))),
+      workspace(cwd).pipe(
+        Effect.flatMap((entry) => SubscriptionRef.get(entry.state)),
+        Effect.map((state) => state.paper),
+      ),
+    currentStatus,
     subscribe: (cwd) =>
       Stream.unwrap(
         Effect.gen(function* () {
           const entry = yield* workspace(cwd);
           yield* Effect.acquireRelease(acquireWatcher(entry), () => releaseWatcher(entry));
-          return SubscriptionRef.changes(entry.state);
+          return SubscriptionRef.changes(entry.state).pipe(Stream.map((state) => state.paper));
         }),
       ),
-    build: (cwd) => workspace(cwd).pipe(Effect.flatMap(requestBuild)),
+    build: (cwd) => workspace(cwd).pipe(Effect.flatMap(requestBuild), Effect.asVoid),
     syncFromPdf: (input) =>
       Effect.gen(function* () {
         const entry = yield* workspace(input.cwd);
@@ -410,6 +455,7 @@ const make = Effect.gen(function* () {
     propose: (input) =>
       Effect.gen(function* () {
         const entry = yield* workspace(input.cwd);
+        if (entry.sync === null) yield* currentStatus(input.cwd);
         return yield* Effect.gen(function* () {
           const file = yield* sourceFile(input.cwd, input.file);
           const source = yield* io(fs.readFileString(file.absolute));
@@ -433,7 +479,7 @@ const make = Effect.gen(function* () {
             status: "pending",
             createdAt,
           };
-          const state = yield* SubscriptionRef.get(entry.state);
+          const { paper: state } = yield* SubscriptionRef.get(entry.state);
           yield* persist(entry, [...state.proposals, proposal]);
           return proposal;
         }).pipe(entry.lock.withPermits(1));
@@ -442,19 +488,17 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         const entry = yield* workspace(input.cwd);
         return yield* Effect.gen(function* () {
-          const state = yield* SubscriptionRef.get(entry.state);
+          const { paper: state } = yield* SubscriptionRef.get(entry.state);
           const proposal = state.proposals.find((candidate) => candidate.id === input.proposalId);
           if (proposal === undefined)
             return yield* new PaperError({ reason: "proposal_not_found" });
           if (proposal.status !== "pending")
             return yield* new PaperError({ reason: "proposal_resolved" });
           const save = (resolved: PaperProposal) =>
-            persist(
-              entry,
-              state.proposals.map((candidate) =>
-                candidate.id === resolved.id ? resolved : candidate,
-              ),
-            ).pipe(Effect.as(resolved));
+            persist(entry, [
+              ...state.proposals.filter((candidate) => candidate.id !== resolved.id),
+              resolved,
+            ]).pipe(Effect.as(resolved));
           if (input.resolution.type === "dismiss")
             return yield* save({ ...proposal, status: "dismissed" });
           const option = proposal.options[input.resolution.optionIndex];
