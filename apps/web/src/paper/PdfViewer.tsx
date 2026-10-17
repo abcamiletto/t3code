@@ -247,6 +247,8 @@ export function PdfViewer({
     setViewport((current) => ({ ...current, scrollTop }));
     // Highlights mark positions in the previous build; the text under them may have moved.
     if (documents.active) clearHighlights(workspaceKey);
+    setSelection(null);
+    window.getSelection()?.removeAllRanges();
     setDocuments({ active: next, pending: null });
     onPageChange(Math.min(anchor.page + 1, next.pdf.numPages), next.pdf.numPages);
   };

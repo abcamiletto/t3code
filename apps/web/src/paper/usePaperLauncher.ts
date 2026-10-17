@@ -1,20 +1,30 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
-import { isProjectLatexFaviconUrl } from "@t3tools/shared/projectFavicon";
-import { Atom } from "effect/reactivity";
-import { projectFaviconUrlAtom } from "~/state/assets";
+import { isProjectLatexUrl } from "@t3tools/shared/projectFavicon";
+import * as Option from "effect/Option";
+import { AsyncResult, Atom } from "effect/reactivity";
+import { assetEnvironment } from "~/state/assets";
 
 const noFavicon = Atom.make(null);
 
 export function usePaperLauncher(project: EnvironmentProject | null) {
-  const url = useAtomValue(
+  // Image thumbnails discard URL metadata; read the shared asset request before image caching.
+  const result = useAtomValue(
     project
-      ? projectFaviconUrlAtom({
+      ? assetEnvironment.createUrl({
           environmentId: project.environmentId,
-          cwd: project.workspaceRoot,
-          faviconPath: project.faviconPath,
+          input: {
+            resource: {
+              _tag: "project-favicon",
+              cwd: project.workspaceRoot,
+              ...(project.faviconPath ? { path: project.faviconPath } : {}),
+            },
+          },
         })
       : noFavicon,
   );
-  return isProjectLatexFaviconUrl(url);
+  return (
+    result !== null &&
+    isProjectLatexUrl(Option.getOrUndefined(AsyncResult.value(result))?.relativeUrl)
+  );
 }

@@ -71,16 +71,32 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
-    it.effect("prefers a favicon over root TeX entries", () =>
-      Effect.gen(function* () {
-        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
-        const path = yield* Path.Path;
-        const cwd = yield* makeTempDir;
-        yield* writeTextFile(cwd, "main.tex", "\\documentclass{article}");
-        yield* writeTextFile(cwd, "favicon.svg", "<svg>favicon</svg>");
-
-        expect(yield* resolver.resolvePath(cwd)).toBe(path.join(cwd, "favicon.svg"));
-      }),
+    it.effect.each([undefined, "favicon.svg"])(
+      "caches LaTeX detection alongside a real favicon (override: %s)",
+      (faviconPath) =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const cwd = yield* makeTempDir;
+          yield* writeTextFile(cwd, "main.tex", "\\documentclass{article}");
+          yield* writeTextFile(cwd, "favicon.svg", "<svg>favicon</svg>");
+          let rootReads = 0;
+          const resolver = yield* makeResolverWithFileSystem(
+            FileSystem.FileSystem.of({
+              ...fileSystem,
+              readDirectory: (directory, options) => {
+                rootReads++;
+                return fileSystem.readDirectory(directory, options);
+              },
+            }),
+          );
+          const expected = { _tag: "latex", path: path.join(cwd, "favicon.svg") };
+          expect(yield* resolver.resolvePath(cwd, faviconPath)).toEqual(expected);
+          expect(yield* resolver.resolvePath(cwd, faviconPath)).toEqual(expected);
+          expect(rootReads).toBe(1);
+          yield* fileSystem.remove(path.join(cwd, "favicon.svg"));
+          expect(yield* resolver.resolvePath(cwd, faviconPath)).toEqual({ _tag: "latex" });
+        }),
     );
 
     it.effect("does not detect TeX entries below the project root", () =>

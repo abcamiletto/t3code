@@ -505,6 +505,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   let fileName: string;
   let sourcePath: string | undefined;
   let imageDimensions: ImageDimensions | null = null;
+  let latexFavicon = false;
 
   switch (input.resource._tag) {
     case "media-file": {
@@ -666,7 +667,8 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
                     }),
                 ),
               );
-      const faviconPath = typeof favicon === "string" ? favicon : null;
+      const faviconPath = typeof favicon === "string" ? favicon : (favicon?.path ?? null);
+      latexFavicon = faviconPath !== null && typeof favicon !== "string";
       const isExternalOverride =
         faviconPath !== null &&
         input.projectFaviconPath !== undefined &&
@@ -828,7 +830,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   const encodedPayload = base64UrlEncode(encodeAssetClaims(claims));
   const token = `${encodedPayload}.${signPayload(encodedPayload, signingSecret)}`;
   return {
-    relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}`,
+    relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}${latexFavicon ? "?latex=1" : ""}`,
     expiresAt,
     ...(sourcePath !== undefined ? { sourcePath } : {}),
     ...(imageDimensions !== null ? { imageDimensions } : {}),
