@@ -1,3 +1,11 @@
+import { vi } from "vite-plus/test";
+
+vi.mock("@t3tools/shared/forkIdentity", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@t3tools/shared/forkIdentity")>();
+  return { forkIdentity: { ...original.forkIdentity, autoUpdatesEnabled: true } };
+});
+
+import { forkIdentity } from "@t3tools/shared/forkIdentity";
 import { assert, describe, it } from "@effect/vitest";
 import { DESKTOP_UPDATE_RESTART_MARKER_FILE } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
@@ -21,6 +29,74 @@ import * as DesktopUpdates from "./DesktopUpdates.ts";
 import { flushCallbacks, makeHarness } from "./updatesTestHarness.ts";
 
 describe("DesktopUpdates", () => {
+  it.effect("disables fork updates despite an update feed and mock update settings", () => {
+    const harness = makeHarness();
+    forkIdentity.autoUpdatesEnabled = false;
+    return Effect.gen(function* () {
+      const updates = yield* DesktopUpdates.DesktopUpdates;
+      yield* updates.configure;
+      const state = yield* updates.getState;
+      assert.equal(state.enabled, false);
+      assert.equal(state.status, "disabled");
+      assert.deepEqual(
+        yield* updates.disabledReason,
+        Option.some("Automatic updates are disabled for T3 Paper."),
+      );
+      yield* updates.check("manual");
+      yield* updates.download;
+      assert.equal(harness.checkCount(), 0);
+      assert.equal(harness.downloadCount(), 0);
+      assert.equal(harness.listenerCount(), 0);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(harness.layer),
+      Effect.ensuring(
+        Effect.sync(() => {
+          forkIdentity.autoUpdatesEnabled = true;
+        }),
+      ),
+    );
+  });
+
+  it("preserves complete causes for update poller and event failures", () => {
+    const cause = Cause.combine(
+      Cause.fail(new Error("updater failed")),
+      Cause.die(new Error("updater defect")),
+    );
+    const pollerError = new DesktopUpdates.DesktopUpdatePollerError({
+      poller: "startup",
+      cause,
+    });
+    const eventError = new DesktopUpdates.DesktopUpdateEventHandlingError({
+      event: "download-progress",
+      cause,
+    });
+    const reportedError = new DesktopUpdates.DesktopUpdaterReportedError({
+      operation: "download",
+      cause,
+    });
+    const unexpectedActionError = new DesktopUpdates.DesktopUpdateUnexpectedActionError({
+      action: "install",
+      cause,
+    });
+
+    assert.strictEqual(pollerError.cause, cause);
+    assert.equal(pollerError.poller, "startup");
+    assert.equal(pollerError.message, "Desktop update startup poller failed.");
+    assert.strictEqual(eventError.cause, cause);
+    assert.equal(eventError.event, "download-progress");
+    assert.equal(eventError.message, "Failed to handle desktop update download-progress event.");
+    assert.strictEqual(reportedError.cause, cause);
+    assert.equal(reportedError.operation, "download");
+    assert.equal(reportedError.message, "Desktop updater download operation reported an error.");
+    assert.strictEqual(unexpectedActionError.cause, cause);
+    assert.equal(unexpectedActionError.action, "install");
+    assert.equal(
+      unexpectedActionError.message,
+      "Desktop update install action failed unexpectedly.",
+    );
+  });
+
   it.effect("updates Linux .deb installs and leaves other non-AppImage installs off", () =>
     Effect.gen(function* () {
       const linuxState = (packageType: string | undefined) =>

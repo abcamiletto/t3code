@@ -16,6 +16,22 @@ const resolveWindowsUserData = (appDataDirectory: string) =>
   }).pipe(Effect.provide(DesktopPreReadyFileSystem.layer));
 
 it.layer(NodeServices.layer)("DesktopPreReadyFileSystem", (it) => {
+  // The fork never adopts the official app's profile.
+  it.effect("leaves the official app's Windows profile alone", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-pre-ready-fs-" });
+      yield* fileSystem.makeDirectory(path.join(root, "T3 Code (Alpha)"));
+      yield* fileSystem.writeFileString(path.join(root, "T3 Code (Alpha)", "Local State"), "keys");
+
+      const userData = yield* resolveWindowsUserData(root);
+
+      assert.equal(userData, path.join(root, "t3paper"));
+      assert.isFalse(yield* fileSystem.exists(path.join(userData, "Local State")));
+    }),
+  );
+
   it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32" || process.getuid?.() === 0)(
     "fails instead of treating an unreadable profile as missing",
     () =>
