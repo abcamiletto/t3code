@@ -4,11 +4,24 @@ import {
   getProjectFaviconCacheKey,
   isProjectFaviconFallbackUrl,
   isProjectLatexFaviconUrl,
+  isProjectLatexUrl,
   PROJECT_FAVICON_FALLBACK_MARKER,
   PROJECT_FAVICON_LATEX_MARKER,
 } from "./projectFavicon.ts";
 
 describe("project favicon", () => {
+  it("keeps LaTeX capability separate from the icon displayed for real favicons", () => {
+    const real = "/api/assets/token/favicon.svg?latex=1";
+    expect(isProjectLatexUrl(real)).toBe(true);
+    expect(isProjectLatexFaviconUrl(real)).toBe(false);
+    expect(isProjectFaviconFallbackUrl(real)).toBe(false);
+    expect(isProjectLatexUrl(`/api/assets/token/${PROJECT_FAVICON_LATEX_MARKER}`)).toBe(true);
+    expect(isProjectLatexUrl("/api/assets/token/favicon.svg?latex=0")).toBe(false);
+    expect(isProjectLatexUrl("/api/assets/token/favicon.svg")).toBe(false);
+    expect(isProjectLatexUrl(null)).toBe(false);
+    expect(isProjectLatexUrl(undefined)).toBe(false);
+    expect(isProjectLatexUrl("http://[")).toBe(false);
+  });
   it("identifies LaTeX asset URLs by their dedicated filename", () => {
     expect(
       isProjectLatexFaviconUrl(

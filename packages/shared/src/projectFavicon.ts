@@ -54,3 +54,14 @@ export function isProjectLatexFaviconUrl(url: string | null | undefined): boolea
     return false;
   }
 }
+
+export function isProjectLatexUrl(url: string | null | undefined): boolean {
+  if (isProjectLatexFaviconUrl(url)) return true;
+  if (!url) return false;
+
+  try {
+    return new URL(url, "https://t3.invalid").searchParams.get("latex") === "1";
+  } catch {
+    return false;
+  }
+}

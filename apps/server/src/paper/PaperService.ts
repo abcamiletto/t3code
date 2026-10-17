@@ -71,6 +71,8 @@ const make = Effect.gen(function* () {
   const workspaces = new Map<
     string,
     {
+      cwd: string;
+      references: number;
       state: SubscriptionRef.SubscriptionRef<{ paper: PaperState; completedBuild: number }>;
       buildNumber: number;
       lock: Semaphore.Semaphore;
@@ -152,7 +154,7 @@ const make = Effect.gen(function* () {
         catch: (cause) => new PaperError({ reason: "sync_unavailable", cause }),
       });
     });
-  const workspace = (inputCwd: string) =>
+  const acquireWorkspace = (inputCwd: string) =>
     Effect.gen(function* () {
       const cwd = yield* fs
         .realPath(path.resolve(inputCwd))
@@ -160,7 +162,10 @@ const make = Effect.gen(function* () {
           Effect.mapError((cause) => new PaperError({ reason: "workspace_unavailable", cause })),
         );
       const existing = workspaces.get(cwd);
-      if (existing) return existing;
+      if (existing) {
+        existing.references++;
+        return existing;
+      }
       const detected = yield* detect(cwd);
       const stored = yield* readOptional(path.join(cwd, ".t3-paper", "proposals.json"));
       const proposals = stored === null ? [] : yield* io(decodeProposals(stored));
@@ -186,6 +191,8 @@ const make = Effect.gen(function* () {
               Effect.orElseSucceed(() => null),
             );
       const entry = {
+        cwd,
+        references: 1,
         state,
         buildNumber: 0,
         lock,
@@ -198,6 +205,18 @@ const make = Effect.gen(function* () {
       workspaces.set(cwd, entry);
       return entry;
     }).pipe(initialization.withPermits(1));
+
+  const evict = (entry: Workspace) =>
+    Effect.sync(() => {
+      if (entry.references === 0 && !entry.running) workspaces.delete(entry.cwd);
+    });
+  const releaseWorkspace = (entry: Workspace) =>
+    Effect.suspend(() => {
+      entry.references--;
+      return evict(entry);
+    });
+  const withWorkspace = <A, E, R>(cwd: string, use: (entry: Workspace) => Effect.Effect<A, E, R>) =>
+    Effect.acquireUseRelease(acquireWorkspace(cwd), use, releaseWorkspace);
 
   const persist = (entry: Workspace, proposals: ReadonlyArray<PaperProposal>) =>
     Effect.gen(function* () {
@@ -376,7 +395,7 @@ const make = Effect.gen(function* () {
                 return run;
               }
               entry.running = false;
-              return Effect.void;
+              return evict(entry);
             }),
           ),
         ),
@@ -384,10 +403,8 @@ const make = Effect.gen(function* () {
       yield* Effect.forkIn(run, serviceScope);
       return target;
     });
-  const currentStatus = Effect.fnUntraced(function* (cwd: string) {
-    const entry = yield* workspace(cwd);
-    const target =
-      entry.watcher !== null && !entry.dirty ? entry.buildNumber : yield* requestBuild(entry);
+  const awaitCurrentBuild = Effect.fnUntraced(function* (entry: Workspace) {
+    const target = yield* requestBuild(entry);
     const completed = yield* SubscriptionRef.changes(entry.state).pipe(
       Stream.filter(
         (state) => state.completedBuild >= target && state.paper.build.status !== "building",
@@ -428,79 +445,83 @@ const make = Effect.gen(function* () {
 
   return PaperService.of({
     status: (cwd) =>
-      workspace(cwd).pipe(
-        Effect.flatMap((entry) => SubscriptionRef.get(entry.state)),
+      withWorkspace(cwd, (entry) => SubscriptionRef.get(entry.state)).pipe(
         Effect.map((state) => state.paper),
       ),
-    currentStatus,
+    currentStatus: (cwd) => withWorkspace(cwd, awaitCurrentBuild),
     subscribe: (cwd) =>
       Stream.unwrap(
         Effect.gen(function* () {
-          const entry = yield* workspace(cwd);
+          const entry = yield* Effect.acquireRelease(acquireWorkspace(cwd), releaseWorkspace);
           yield* Effect.acquireRelease(acquireWatcher(entry), () => releaseWatcher(entry));
           return SubscriptionRef.changes(entry.state).pipe(Stream.map((state) => state.paper));
         }),
       ),
-    build: (cwd) => workspace(cwd).pipe(Effect.flatMap(requestBuild), Effect.asVoid),
+    build: (cwd) => withWorkspace(cwd, requestBuild).pipe(Effect.asVoid),
     syncFromPdf: (input) =>
-      Effect.gen(function* () {
-        const entry = yield* workspace(input.cwd);
-        const hit =
-          entry.sync === null
-            ? undefined
-            : backwardSearch(entry.sync, input.page, input.x, input.y);
-        if (hit === undefined) return yield* new PaperError({ reason: "sync_unavailable" });
-        const file = yield* sourceFile(input.cwd, hit.file);
-        const source = yield* io(fs.readFileString(file.absolute));
-        return refineSource(file.relative, source, hit.line, input.text);
-      }),
-    propose: (input) =>
-      Effect.gen(function* () {
-        const entry = yield* workspace(input.cwd);
-        if (entry.sync === null) yield* currentStatus(input.cwd);
-        return yield* Effect.gen(function* () {
-          const file = yield* sourceFile(input.cwd, input.file);
+      withWorkspace(input.cwd, (entry) =>
+        Effect.gen(function* () {
+          const hit =
+            entry.sync === null
+              ? undefined
+              : backwardSearch(entry.sync, input.page, input.x, input.y);
+          if (hit === undefined) return yield* new PaperError({ reason: "sync_unavailable" });
+          const file = yield* sourceFile(input.cwd, hit.file);
           const source = yield* io(fs.readFileString(file.absolute));
-          const range = originalRange(source, input.original);
-          if (range === undefined) return yield* new PaperError({ reason: "original_not_found" });
-          const id = yield* crypto.randomUUIDv4().pipe(io);
-          const createdAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso));
-          const proposal: PaperProposal = {
-            id,
-            file: file.relative,
-            original: input.original,
-            startLine: range.startLine,
-            endLine: range.endLine,
-            options: input.options,
-            ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
-            ...(input.summary === undefined ? {} : { summary: input.summary }),
-            boxes:
-              entry.sync === null
-                ? []
-                : forwardSearch(entry.sync, file.relative, range.startLine, range.endLine),
-            status: "pending",
-            createdAt,
-          };
-          const { paper: state } = yield* SubscriptionRef.get(entry.state);
-          // A revised proposal for the same text replaces the one the user was replying to.
-          const superseded = (candidate: PaperProposal) =>
-            candidate.status === "pending" &&
-            candidate.file === proposal.file &&
-            candidate.startLine <= proposal.endLine &&
-            proposal.startLine <= candidate.endLine;
-          yield* persist(entry, [
-            ...state.proposals.map((candidate) =>
-              superseded(candidate) ? { ...candidate, status: "dismissed" as const } : candidate,
-            ),
-            proposal,
-          ]);
-          return proposal;
-        }).pipe(entry.lock.withPermits(1));
-      }),
+          return refineSource(file.relative, source, hit.line, input.text);
+        }),
+      ),
+    propose: (input) =>
+      withWorkspace(input.cwd, (entry) =>
+        Effect.gen(function* () {
+          if (entry.sync === null) yield* awaitCurrentBuild(entry);
+          return yield* Effect.gen(function* () {
+            const file = yield* sourceFile(input.cwd, input.file);
+            const source = yield* io(fs.readFileString(file.absolute));
+            const range = originalRange(source, input.original);
+            if (range === undefined) return yield* new PaperError({ reason: "original_not_found" });
+            const id = yield* crypto.randomUUIDv4().pipe(io);
+            const createdAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso));
+            const proposal: PaperProposal = {
+              id,
+              file: file.relative,
+              original: input.original,
+              startLine: range.startLine,
+              endLine: range.endLine,
+              options: input.options,
+              ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
+              ...(input.summary === undefined ? {} : { summary: input.summary }),
+              boxes:
+                entry.sync === null
+                  ? []
+                  : forwardSearch(entry.sync, file.relative, range.startLine, range.endLine),
+              status: "pending",
+              createdAt,
+            };
+            const { paper: state } = yield* SubscriptionRef.get(entry.state);
+            // A revised proposal for the same text replaces the one the user was replying to.
+            const superseded = (candidate: PaperProposal) => {
+              if (candidate.status !== "pending" || candidate.file !== proposal.file) return false;
+              const previous = originalRange(source, candidate.original);
+              return (
+                previous !== undefined &&
+                previous.start < range.start + input.original.length &&
+                range.start < previous.start + candidate.original.length
+              );
+            };
+            yield* persist(entry, [
+              ...state.proposals.map((candidate) =>
+                superseded(candidate) ? { ...candidate, status: "dismissed" as const } : candidate,
+              ),
+              proposal,
+            ]);
+            return proposal;
+          }).pipe(entry.lock.withPermits(1));
+        }),
+      ),
     resolve: (input) =>
-      Effect.gen(function* () {
-        const entry = yield* workspace(input.cwd);
-        return yield* Effect.gen(function* () {
+      withWorkspace(input.cwd, (entry) =>
+        Effect.gen(function* () {
           const { paper: state } = yield* SubscriptionRef.get(entry.state);
           const proposal = state.proposals.find((candidate) => candidate.id === input.proposalId);
           if (proposal === undefined)
@@ -536,8 +557,8 @@ const make = Effect.gen(function* () {
             status: "applied",
             appliedOptionIndex: input.resolution.optionIndex,
           });
-        }).pipe(entry.lock.withPermits(1));
-      }),
+        }).pipe(entry.lock.withPermits(1)),
+      ),
   });
 });
 

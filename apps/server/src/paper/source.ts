@@ -29,23 +29,38 @@ export function refineSource(
   text?: string,
 ): PaperSourceRange {
   const lines = source.split(/\r?\n/);
+  const offsets = [0, ...Array.from(source.matchAll(/\n/g), (match) => match.index + 1)];
   const hit = Math.min(lines.length, line);
   let startLine = hit;
   let endLine = hit;
   const selected = text?.replace(/\s+/g, " ").trim() ?? "";
   if (selected) {
     let best = Infinity;
+    let bestDistance = Infinity;
     for (let start = Math.max(0, hit - 16); start < Math.min(lines.length, hit + 15); start++) {
       for (let end = start; end < Math.min(lines.length, hit + 15); end++) {
-        if (end - start >= best) break;
         if (normalize(lines.slice(start, end + 1).join("\n")).includes(selected)) {
-          startLine = start + 1;
-          endLine = end + 1;
-          best = end - start;
+          if (
+            end > start &&
+            normalize(lines.slice(start + 1, end + 1).join("\n")).includes(selected)
+          )
+            break;
+          const distance = Math.max(start + 1 - hit, hit - end - 1, 0);
+          if (distance < bestDistance || (distance === bestDistance && end - start < best)) {
+            startLine = start + 1;
+            endLine = end + 1;
+            best = end - start;
+            bestDistance = distance;
+          }
           break;
         }
       }
     }
   }
-  return { file, startLine, endLine, source: lines.slice(startLine - 1, endLine).join("\n") };
+  return {
+    file,
+    startLine,
+    endLine,
+    source: source.slice(offsets[startLine - 1], offsets[endLine]).replace(/\r?\n$/, ""),
+  };
 }
