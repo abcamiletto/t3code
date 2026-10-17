@@ -98,6 +98,30 @@ it.effect("preserves either enrichment field when the other resolver fails", () 
   }),
 );
 
+it.effect("preserves the real favicon path for LaTeX projects", () =>
+  Effect.gen(function* () {
+    const nextFaviconStarted = yield* Deferred.make<void>();
+    const metadata = Layer.merge(
+      Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
+        resolve: () => Effect.succeed(null),
+      }),
+      Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
+        resolvePath: (cwd) =>
+          cwd === "/next"
+            ? Deferred.succeed(nextFaviconStarted, undefined).pipe(Effect.as(null))
+            : Effect.succeed({ _tag: "latex", path: "/paper/favicon.svg" }),
+      }),
+    );
+    yield* Effect.gen(function* () {
+      const service = yield* ProjectEnrichment.ProjectEnrichmentService;
+      yield* service.request("/paper");
+      yield* service.request("/next");
+      yield* Deferred.await(nextFaviconStarted);
+      assert.equal((yield* service.peek("/paper")).faviconPath, "/paper/favicon.svg");
+    }).pipe(Effect.provide(layer(metadata, { concurrency: 1 })));
+  }),
+);
+
 it.effect("does not warn about favicons for workspace roots that no longer exist", () =>
   Effect.gen(function* () {
     const warnings: Array<unknown> = [];

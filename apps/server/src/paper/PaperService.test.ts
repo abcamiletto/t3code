@@ -114,11 +114,11 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
           path.join(cwd, "main.tex"),
           document.replace(input.original, "\\badcommand"),
         );
-        expect((yield* paper.status(cwd)).build.status).toBe("succeeded");
+        expect((yield* paper.status(cwd)).build.status).toBe("idle");
         const current = yield* paper.currentStatus(cwd);
         expect(current.build).toMatchObject({
           status: "failed",
-          revision: 1,
+          revision: 0,
           pdfPath: ".t3-paper/build/main.pdf",
         });
         expect(current.build.diagnostics[0]).toMatchObject({
@@ -172,7 +172,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
             yield* paper.build(cwd);
           }
           yield* Deferred.await(firstStarted);
-          if (watched) yield* paper.build(cwd);
           yield* fs.writeFileString(
             path.join(cwd, "main.tex"),
             document.replace(input.original, "\\badcommand"),
@@ -199,39 +198,60 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       }),
   );
 
-  it.effect("reuses the watched build and returns watched status without requesting another", () =>
+  it.effect("rebuilds watched files before status even within the watcher debounce", () =>
     Effect.gen(function* () {
       const { fs, path, cwd } = yield* temporaryPaper;
-      const started = yield* Deferred.make<void>();
-      const release = yield* Deferred.make<void>();
+      const built = yield* Deferred.make<void>();
+      const seenEdit = yield* Deferred.make<void>();
+      const events = yield* Queue.unbounded<FileSystem.WatchEvent>();
       let calls = 0;
       const runner: ProcessRunner.ProcessRunner["Service"] = {
         run: (request) =>
           Effect.gen(function* () {
             calls++;
-            yield* Deferred.succeed(started, undefined);
-            yield* Deferred.await(release);
-            return yield* fakeCompile(request);
+            const source = yield* fs.readFileString(path.join(cwd, "main.tex"));
+            return source.includes("\\badcommand")
+              ? result(1, "error: main.tex:3: Undefined control sequence.")
+              : yield* fakeCompile(request);
           }).pipe(
             Effect.provideService(FileSystem.FileSystem, fs),
             Effect.provideService(Path.Path, path),
+            Effect.orDie,
           ),
       };
-      const layer = PaperService.layer.pipe(
-        Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
-        Layer.provide(Layer.succeed(FileSystem.FileSystem, { ...fs, watch: () => Stream.never })),
-      );
       yield* Effect.gen(function* () {
         const paper = yield* PaperService.PaperService;
-        yield* paper.subscribe(cwd).pipe(Stream.runDrain, Effect.forkScoped);
-        yield* Deferred.await(started);
-        const status = yield* paper.currentStatus(cwd).pipe(Effect.forkScoped);
-        yield* Deferred.succeed(release, undefined);
-        const current = yield* Fiber.join(status);
-        expect(current.build).toMatchObject({ status: "succeeded", revision: 1 });
-        expect(yield* paper.currentStatus(cwd)).toEqual(current);
-        expect(calls).toBe(1);
-      }).pipe(Effect.provide(layer));
+        yield* paper.subscribe(cwd).pipe(
+          Stream.runForEach((state) =>
+            state.build.status === "succeeded" ? Deferred.succeed(built, undefined) : Effect.void,
+          ),
+          Effect.forkScoped,
+        );
+        yield* Deferred.await(built);
+        yield* fs.writeFileString(
+          path.join(cwd, "main.tex"),
+          document.replace(input.original, "\\badcommand"),
+        );
+        yield* Queue.offer(events, { _tag: "Update", path: "main.tex" });
+        yield* Deferred.await(seenEdit);
+        expect((yield* paper.currentStatus(cwd)).build.status).toBe("failed");
+        expect(calls).toBe(2);
+      }).pipe(
+        Effect.provide(
+          PaperService.layer.pipe(
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+            Layer.provide(
+              Layer.succeed(FileSystem.FileSystem, {
+                ...fs,
+                watch: () =>
+                  Stream.fromQueue(events).pipe(
+                    Stream.tap(() => Deferred.succeed(seenEdit, undefined)),
+                  ),
+              }),
+            ),
+          ),
+        ),
+      );
     }),
   );
 
@@ -252,7 +272,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         const paper = yield* PaperService.PaperService;
         const proposal = yield* paper.propose({ ...input, cwd });
         expect(proposal.boxes.length).toBeGreaterThan(0);
-        expect((yield* paper.status(cwd)).build.status).toBe("succeeded");
+        expect((yield* paper.status(cwd)).build.status).toBe("idle");
         expect((yield* paper.propose({ ...input, cwd })).boxes).toEqual(proposal.boxes);
         expect(calls).toBe(1);
       }).pipe(
@@ -405,6 +425,148 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         { id: revised.id, status: "pending" },
       ]);
     }).pipe(Effect.provide(layerPaper)),
+  );
+
+  it.effect("only supersedes overlapping character ranges after source lines move", () =>
+    Effect.gen(function* () {
+      const { fs, path, cwd } = yield* temporaryPaper;
+      const paper = yield* PaperService.PaperService;
+      const text = "First sentence.Second sentence.";
+      yield* fs.writeFileString(path.join(cwd, "main.tex"), document.replace(input.original, text));
+      const first = yield* paper.propose({ ...input, cwd, original: "First sentence." });
+      const second = yield* paper.propose({ ...input, cwd, original: "Second sentence." });
+      expect((yield* paper.status(cwd)).proposals.every((item) => item.status === "pending")).toBe(
+        true,
+      );
+      yield* fs.writeFileString(
+        path.join(cwd, "main.tex"),
+        `\n${document.replace(input.original, text)}`,
+      );
+      const revised = yield* paper.propose({ ...input, cwd, original: "First sentence" });
+      expect(
+        (yield* paper.status(cwd)).proposals.map(({ id, status }) => ({ id, status })),
+      ).toEqual([
+        { id: first.id, status: "dismissed" },
+        { id: second.id, status: "pending" },
+        { id: revised.id, status: "pending" },
+      ]);
+    }).pipe(Effect.provide(layerPaper)),
+  );
+
+  it.effect("evicts workspaces after unsubscribed calls and reloads persisted proposals", () =>
+    Effect.gen(function* () {
+      const { fs, path, cwd } = yield* temporaryPaper;
+      let loads = 0;
+      const layer = PaperService.layer.pipe(
+        Layer.provide(layerNoCompiler),
+        Layer.provide(
+          Layer.succeed(FileSystem.FileSystem, {
+            ...fs,
+            readFileString: (file, options) => {
+              if (file.endsWith("proposals.json")) loads++;
+              return fs.readFileString(file, options);
+            },
+          }),
+        ),
+      );
+      yield* Effect.gen(function* () {
+        const paper = yield* PaperService.PaperService;
+        yield* paper.status(cwd);
+        yield* paper.status(cwd);
+        expect(loads).toBe(2);
+        yield* paper.currentStatus(cwd);
+        const proposal = yield* paper.propose({ ...input, cwd });
+        expect(loads).toBe(4);
+        yield* paper.resolve({
+          cwd,
+          proposalId: proposal.id,
+          resolution: { type: "apply", optionIndex: 0 },
+        });
+        expect(loads).toBe(5);
+        expect(yield* fs.readFileString(path.join(cwd, "main.tex"))).toBe(
+          document.replace(input.original, options[0]!.latex),
+        );
+        yield* paper.propose({ ...input, cwd }).pipe(Effect.flip);
+        yield* paper.syncFromPdf({ cwd, page: 1, x: 20, y: 15 }).pipe(Effect.flip);
+        const state = yield* paper.status(cwd);
+        expect(loads).toBe(8);
+        expect(state.proposals[0]).toMatchObject({ id: proposal.id, status: "applied" });
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect.each([false, true])(
+    "evicts after the last subscriber and build finish (disconnect during build: %s)",
+    (duringBuild) =>
+      Effect.gen(function* () {
+        const { fs, path, cwd } = yield* temporaryPaper;
+        const started = yield* Deferred.make<void>();
+        const release = yield* Deferred.make<void>();
+        const built = yield* Deferred.make<void>();
+        let loads = 0;
+        const runner: ProcessRunner.ProcessRunner["Service"] = {
+          run: (request) =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(started, undefined);
+              yield* Deferred.await(release);
+              return yield* fakeCompile(request);
+            }).pipe(
+              Effect.provideService(FileSystem.FileSystem, fs),
+              Effect.provideService(Path.Path, path),
+            ),
+        };
+        yield* Effect.gen(function* () {
+          const paper = yield* PaperService.PaperService;
+          const subscriber = yield* paper.subscribe(cwd).pipe(
+            Stream.runForEach((state) =>
+              state.build.status === "succeeded" ? Deferred.succeed(built, undefined) : Effect.void,
+            ),
+            Effect.forkScoped,
+          );
+          yield* Deferred.await(started);
+          const otherReady = yield* Deferred.make<void>();
+          const other = yield* paper.subscribe(cwd).pipe(
+            Stream.runForEach(() => Deferred.succeed(otherReady, undefined)),
+            Effect.forkScoped,
+          );
+          yield* Deferred.await(otherReady);
+          if (!duringBuild) {
+            yield* Deferred.succeed(release, undefined);
+            yield* Deferred.await(built);
+          }
+          yield* Fiber.interrupt(other);
+          yield* paper.status(cwd);
+          expect(loads).toBe(1);
+          yield* Fiber.interrupt(subscriber);
+          if (duringBuild) {
+            expect((yield* paper.status(cwd)).build.status).toBe("building");
+            expect(loads).toBe(1);
+            const status = yield* paper.currentStatus(cwd).pipe(Effect.forkScoped);
+            yield* Deferred.succeed(release, undefined);
+            expect((yield* Fiber.join(status)).build.status).toBe("succeeded");
+          }
+          expect((yield* paper.status(cwd)).build.status).toBe("idle");
+          expect(loads).toBe(2);
+          expect((yield* paper.propose({ ...input, cwd })).boxes.length).toBeGreaterThan(0);
+          expect(loads).toBe(3);
+        }).pipe(
+          Effect.provide(
+            PaperService.layer.pipe(
+              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+              Layer.provide(
+                Layer.succeed(FileSystem.FileSystem, {
+                  ...fs,
+                  watch: () => Stream.never,
+                  readFileString: (file, options) => {
+                    if (file.endsWith("proposals.json")) loads++;
+                    return fs.readFileString(file, options);
+                  },
+                }),
+              ),
+            ),
+          ),
+        );
+      }),
   );
 
   it.effect(

@@ -12,10 +12,16 @@ import {
   resolveMacCodeSignArguments,
   resolveMacLauncherIconPaths,
   resolveMacLauncherPaths,
+  resolveMacProtocolSchemes,
   writeDevelopmentLauncherScript,
 } from "./electron-launcher.mjs";
 
 describe("electron development launcher", () => {
+  it("registers Paper schemes separately for development and production", () => {
+    assert.deepEqual(resolveMacProtocolSchemes(true), ["t3paper-dev"]);
+    assert.deepEqual(resolveMacProtocolSchemes(false), ["t3paper"]);
+  });
+
   it("uses captured values only as fallbacks for a live runner environment", () => {
     const environmentScript = makeDevelopmentEnvironmentScript({
       VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",

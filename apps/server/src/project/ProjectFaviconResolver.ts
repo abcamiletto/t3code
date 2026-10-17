@@ -18,7 +18,10 @@ const FAVICON_CACHE_CAPACITY = 512;
 const FAVICON_POSITIVE_CACHE_TTL = Duration.minutes(10);
 const FAVICON_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
-export type ProjectFaviconResolution = string | { readonly _tag: "latex" } | null;
+export type ProjectFaviconResolution =
+  | string
+  | { readonly _tag: "latex"; readonly path?: string }
+  | null;
 
 function faviconCacheKey(cwd: string, faviconPath?: string): string {
   return `${faviconPath ?? ""}\0${cwd}`;
@@ -270,10 +273,23 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
+    const entries = yield* fileSystem.readDirectory(projectCwd).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectFaviconResolutionError({
+            operation: "read-root",
+            workspaceRoot: projectCwd,
+            cause,
+          }),
+      ),
+    );
+    const isLatex = entries.some((entry) => entry.endsWith(".tex"));
+    const found = (file: string): ProjectFaviconResolution =>
+      isLatex ? { _tag: "latex", path: file } : file;
     if (faviconPath !== undefined) {
       const existing = yield* findExistingFile(projectCwd, [faviconPath], "filesystem");
       if (existing) {
-        return existing;
+        return found(existing);
       }
     }
 
@@ -285,7 +301,7 @@ export const make = Effect.gen(function* () {
         "workspace",
       );
       if (existing) {
-        return existing;
+        return found(existing);
       }
     }
 
@@ -293,27 +309,17 @@ export const make = Effect.gen(function* () {
       findExistingFile(projectCwd, [candidate], "workspace"),
     );
     if (wellKnown) {
-      return wellKnown;
+      return found(wellKnown);
     }
 
     const fromSource = yield* firstInOrder(ICON_SOURCE_FILES, (sourceFile) =>
       findIconFromSource(projectCwd, sourceFile),
     );
     if (fromSource) {
-      return fromSource;
+      return found(fromSource);
     }
 
-    const entries = yield* fileSystem.readDirectory(projectCwd).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectFaviconResolutionError({
-            operation: "read-root",
-            workspaceRoot: projectCwd,
-            cause,
-          }),
-      ),
-    );
-    return entries.some((entry) => entry.endsWith(".tex")) ? { _tag: "latex" } : null;
+    return isLatex ? { _tag: "latex" } : null;
   });
 
   const faviconCache = yield* Cache.makeWith<
@@ -340,17 +346,18 @@ export const make = Effect.gen(function* () {
   )(function* (cwd, faviconPath) {
     const key = faviconCacheKey(cwd, faviconPath);
     const cached = yield* Cache.get(faviconCache, key);
-    if (typeof cached !== "string") {
+    const cachedPath = typeof cached === "string" ? cached : cached?.path;
+    if (cachedPath === undefined) {
       return cached;
     }
 
-    const stats = yield* optionOnNotFound(fileSystem.stat(cached)).pipe(
+    const stats = yield* optionOnNotFound(fileSystem.stat(cachedPath)).pipe(
       Effect.mapError(
         (cause) =>
           new ProjectFaviconResolutionError({
             operation: "stat-candidate",
             workspaceRoot: cwd,
-            absolutePath: cached,
+            absolutePath: cachedPath,
             cause,
           }),
       ),

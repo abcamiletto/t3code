@@ -232,7 +232,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
       isDevelopment ? `${forkIdentity.appId}.dev` : forkIdentity.appId,
     ),
     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
-    linuxWmClass: isDevelopment ? "t3code-dev" : "t3code",
+    linuxWmClass: isDevelopment ? `${forkIdentity.slug}-dev` : forkIdentity.slug,
     linuxApplicationsDir,
     appImagePath: config.appImagePath,
     defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
