@@ -1,4 +1,4 @@
-import type { PaperState } from "@t3tools/contracts";
+import type { PaperState, ScopedThreadRef } from "@t3tools/contracts";
 import {
   Check,
   CircleDashed,
@@ -12,9 +12,11 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Button } from "~/components/ui/button";
 import { PaperIconButton } from "./PaperIconButton";
+import { PaperProposalNavigation } from "./PaperProposalNavigation";
 
 export function PaperToolbar({
   state,
+  threadRef,
   page,
   pages,
   zoom,
@@ -26,6 +28,7 @@ export function PaperToolbar({
   onDiagnostics,
 }: {
   state: PaperState;
+  threadRef: ScopedThreadRef;
   page: number;
   pages: number;
   zoom: number;
@@ -43,6 +46,7 @@ export function PaperToolbar({
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
         {state.mainFile?.split("/").at(-1) ?? "Paper"}
       </span>
+      <PaperProposalNavigation state={state} threadRef={threadRef} />
       <Tooltip>
         <TooltipTrigger render={<span role="img" aria-label={state.build.status} />}>
           {building ? (

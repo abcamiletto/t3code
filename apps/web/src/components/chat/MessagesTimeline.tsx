@@ -1,5 +1,6 @@
 import { useRenderedAppearance } from "../../hooks/useTheme";
 import type { Root, RootContent } from "mdast";
+import { PaperProposalTimelineRow } from "~/paper/PaperProposalTimelineRow";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
 import { shallow } from "zustand/vanilla/shallow";
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
@@ -1979,6 +1980,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
                 row.kind === "worktree-setup" ||
                 row.kind === "event" ||
                 row.kind === "attempt-fold" ||
+                row.kind === "paper-proposal" ||
                 row.kind === "html-render" ||
                 row.kind === "mcp-app"
               ? "pb-2"
@@ -2028,6 +2030,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       ) : null}
       {row.kind === "assistant-meta" ? <AssistantMetaTimelineRow row={row} /> : null}
       {row.kind === "proposed-plan" ? <ProposedPlanTimelineRow row={row} /> : null}
+      {row.kind === "paper-proposal" ? <PaperTimelineRow row={row} /> : null}
       {row.kind === "html-render" ? <HtmlRenderTimelineRow row={row} /> : null}
       {row.kind === "mcp-app" ? <McpAppTimelineRow row={row} /> : null}
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
@@ -2871,6 +2874,11 @@ function ProposedPlanTimelineRow({
       />
     </div>
   );
+}
+
+function PaperTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "paper-proposal" }> }) {
+  const { threadRef } = use(TimelineRowCtx);
+  return <PaperProposalTimelineRow row={row} threadRef={threadRef} />;
 }
 
 function HtmlRenderTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "html-render" }> }) {

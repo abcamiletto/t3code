@@ -165,6 +165,7 @@ export default function PaperPanel(context: PanelContext) {
     <div className="flex h-full min-h-0 flex-col">
       <PaperToolbar
         state={state}
+        threadRef={threadRef}
         page={position.page}
         pages={position.count}
         zoom={zoom}

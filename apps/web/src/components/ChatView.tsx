@@ -28,6 +28,8 @@ import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnviron
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
+import { PaperLiveProposals } from "~/paper/PaperLiveProposals";
+import { usePaperLauncher } from "~/paper/usePaperLauncher";
 import { openPaperPanel } from "~/paper/openPaperPanel";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
 import { useThreadTerminalActions } from "./terminal/useThreadTerminalActions";
@@ -1866,6 +1868,7 @@ export default function ChatView(props: ChatViewProps) {
       ? scopeProjectRef(activeThreadEnvironmentId, activeThreadProjectId)
       : null;
   const activeProject = useProject(activeProjectRef);
+  const paperAvailable = usePaperLauncher(activeProject);
   const activeProjectSettings = resolveProjectSettings(
     settings,
     activeProject?.id ?? null,
@@ -8101,6 +8104,20 @@ export default function ChatView(props: ChatViewProps) {
       ref={setWorkspaceLayoutElement}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
     >
+      {paperAvailable && isServerThread && activeThreadRef && activeWorkspaceRoot && (
+        <PaperLiveProposals
+          key={`${activeThreadKey}:${activeWorkspaceRoot}`}
+          threadRef={activeThreadRef}
+          cwd={activeWorkspaceRoot}
+          runningTurnId={activeRunningTurnId}
+          enabled={
+            clientSettingsHydrated &&
+            !threadDetailLoading &&
+            settings.proactivePanelsEnabled &&
+            !shouldUsePlanSidebarSheet
+          }
+        />
+      )}
       <DeviceSetupDialogHost
         threadKey={activeThreadKey}
         threadRef={activeThreadRef}
@@ -8831,7 +8848,7 @@ export default function ChatView(props: ChatViewProps) {
           onAddBrowserInProfile={createBrowserSurfaceStable}
           onAddTerminal={addTerminalSurfaceStable}
           onAddDiff={addDiffSurfaceStable}
-          onAddPaper={addPaperSurfaceStable}
+          onAddPaper={paperAvailable ? addPaperSurfaceStable : undefined}
           onAddFiles={addFilesSurfaceStable}
           onAddPullRequest={addPullRequestSurfaceStable}
           onAddPullRequests={addPullRequestsSurfaceStable}
@@ -8887,7 +8904,7 @@ export default function ChatView(props: ChatViewProps) {
             onAddBrowserInProfile={createBrowserSurfaceStable}
             onAddTerminal={addTerminalSurfaceStable}
             onAddDiff={addDiffSurfaceStable}
-            onAddPaper={addPaperSurfaceStable}
+            onAddPaper={paperAvailable ? addPaperSurfaceStable : undefined}
             onAddFiles={addFilesSurfaceStable}
             onAddPullRequest={addPullRequestSurfaceStable}
             onAddPullRequests={addPullRequestsSurfaceStable}
