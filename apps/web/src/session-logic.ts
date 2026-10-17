@@ -1,3 +1,4 @@
+import { paperProposalTimelineEntry, type PaperProposalTimelineEntry } from "./paper/timeline";
 import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
 import {
   type AssetResource,
@@ -123,6 +124,7 @@ export type TimelineAttempt = Pick<
 >;
 
 export type TimelineEntry = (
+  | PaperProposalTimelineEntry
   | {
       readonly id: string;
       readonly kind: "message";
@@ -698,6 +700,12 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
         proposedPlan,
         ...attemptMetadata,
       });
+      continue;
+    }
+
+    const paperProposal = paperProposalTimelineEntry(item, createdAt);
+    if (paperProposal) {
+      entries.push({ ...paperProposal, ...attemptMetadata });
       continue;
     }
 
