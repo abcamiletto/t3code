@@ -8,7 +8,10 @@ import {
   ThreadId,
   TurnItemId,
 } from "@t3tools/contracts";
-import { PROJECT_FAVICON_FALLBACK_MARKER } from "@t3tools/shared/projectFavicon";
+import {
+  PROJECT_FAVICON_FALLBACK_MARKER,
+  PROJECT_FAVICON_LATEX_MARKER,
+} from "@t3tools/shared/projectFavicon";
 import { MCP_APP_MAX_HTML_BYTES } from "@t3tools/shared/mcpApp";
 import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
@@ -851,6 +854,27 @@ describe("AssetAccess", () => {
           fallbackSuffix.slice(0, fallbackSeparatorIndex),
           fallbackSuffix.slice(fallbackSeparatorIndex + 1),
         ),
+      ).toBeNull();
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("issues a LaTeX marker without a source path for a TeX project", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-asset-latex-" });
+      yield* fileSystem.writeFileString(path.join(root, "main.tex"), "\\documentclass{article}");
+
+      const result = yield* issueAssetUrl({
+        resource: { _tag: "project-favicon", cwd: root },
+      });
+
+      expect(result.relativeUrl.endsWith(`/${PROJECT_FAVICON_LATEX_MARKER}`)).toBe(true);
+      expect(result.sourcePath).toBeUndefined();
+      const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+      const separatorIndex = suffix.indexOf("/");
+      expect(
+        yield* resolveAsset(suffix.slice(0, separatorIndex), suffix.slice(separatorIndex + 1)),
       ).toBeNull();
     }).pipe(Effect.provide(layerTest)),
   );

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { EnvironmentId } from "@t3tools/contracts";
+import { PROJECT_FAVICON_LATEX_MARKER } from "@t3tools/shared/projectFavicon";
 
 import {
   createProjectFaviconCache,
@@ -47,6 +48,18 @@ function fixture() {
 }
 
 describe("persistent project favicon cache", () => {
+  it("passes LaTeX markers through without loading an image and discards stale thumbnails", async () => {
+    const { cache, load, records } = fixture();
+    await cache.resolve(target, url, signal());
+    const latexUrl = `https://remote.test/api/assets/token/${PROJECT_FAVICON_LATEX_MARKER}`;
+
+    expect(await cache.resolve(target, latexUrl, signal())).toBe(latexUrl);
+    expect(cache.peek(target)).toBeNull();
+    expect(load).toHaveBeenCalledTimes(1);
+    await cache.flush();
+    expect(records.size).toBe(0);
+  });
+
   it("isolates environments, workspaces, and icon selections", async () => {
     const { cache } = fixture();
     await cache.resolve(target, url, signal());

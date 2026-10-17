@@ -49,6 +49,50 @@ const makeResolverWithFileSystem = (fileSystem: FileSystem.FileSystem) =>
 
 it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
   describe("resolvePath", () => {
+    it.effect("detects root TeX entries and caches the result without listing again", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "main.tex", "\\documentclass{article}");
+        let rootReads = 0;
+        const resolver = yield* makeResolverWithFileSystem(
+          FileSystem.FileSystem.of({
+            ...fileSystem,
+            readDirectory: (directory, options) => {
+              rootReads += 1;
+              return fileSystem.readDirectory(directory, options);
+            },
+          }),
+        );
+
+        expect(yield* resolver.resolvePath(cwd)).toEqual({ _tag: "latex" });
+        expect(yield* resolver.resolvePath(cwd)).toEqual({ _tag: "latex" });
+        expect(rootReads).toBe(1);
+      }),
+    );
+
+    it.effect("prefers a favicon over root TeX entries", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "main.tex", "\\documentclass{article}");
+        yield* writeTextFile(cwd, "favicon.svg", "<svg>favicon</svg>");
+
+        expect(yield* resolver.resolvePath(cwd)).toBe(path.join(cwd, "favicon.svg"));
+      }),
+    );
+
+    it.effect("does not detect TeX entries below the project root", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "docs/main.tex", "\\documentclass{article}");
+
+        expect(yield* resolver.resolvePath(cwd)).toBeNull();
+      }),
+    );
+
     it.effect("finds a favicon added after a cached miss once the workspace is invalidated", () =>
       Effect.gen(function* () {
         const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
