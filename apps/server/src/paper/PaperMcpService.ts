@@ -33,6 +33,9 @@ export class PaperMcpService extends Context.Service<
         proposals: ReadonlyArray<
           Pick<PaperProposal, "id" | "file" | "startLine" | "endLine" | "summary">
         >;
+        resolvedProposals: ReadonlyArray<
+          Pick<PaperProposal, "id" | "file" | "summary" | "status" | "appliedOptionIndex">
+        >;
       },
       OrchestratorMcpFailure
     >;
@@ -73,7 +76,7 @@ const make = Effect.gen(function* () {
     status: (threadId) =>
       Effect.gen(function* () {
         const { cwd } = yield* callingWorkspace(threadId);
-        const state = yield* paper.status(cwd).pipe(Effect.mapError(toFailure));
+        const state = yield* paper.currentStatus(cwd).pipe(Effect.mapError(toFailure));
         return {
           mainFile: state.mainFile,
           buildStatus: state.build.status,
@@ -89,6 +92,17 @@ const make = Effect.gen(function* () {
               startLine,
               endLine,
               ...(summary === undefined ? {} : { summary }),
+            })),
+          resolvedProposals: state.proposals
+            .filter((proposal) => proposal.status !== "pending")
+            .slice(-5)
+            .toReversed()
+            .map(({ id, file, summary, status, appliedOptionIndex }) => ({
+              id,
+              file,
+              ...(summary === undefined ? {} : { summary }),
+              status,
+              ...(appliedOptionIndex === undefined ? {} : { appliedOptionIndex }),
             })),
         };
       }),
