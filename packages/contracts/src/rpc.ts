@@ -370,6 +370,15 @@ import {
 } from "./sourceControl.ts";
 import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
+import {
+  PaperError,
+  PaperProposal,
+  PaperResolveProposalInput,
+  PaperSourceRange,
+  PaperState,
+  PaperSyncFromPdfInput,
+  PaperWorkspaceInput,
+} from "./paper.ts";
 
 export const WS_METHODS = {
   projectsList: "projects.list",
@@ -510,6 +519,10 @@ export const WS_METHODS = {
   scheduledTasksRunNow: "scheduledTasks.runNow",
   scheduledTasksRotateWebhookToken: "scheduledTasks.rotateWebhookToken",
   secretsAnswerRequest: "secrets.answerRequest",
+  paperSubscribe: "paper.subscribe",
+  paperBuild: "paper.build",
+  paperSyncFromPdf: "paper.syncFromPdf",
+  paperResolveProposal: "paper.resolveProposal",
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
   scheduledTasksGetWebhookDelivery: "scheduledTasks.getWebhookDelivery",
 
@@ -1808,6 +1821,27 @@ const WsSecretsAnswerRequestRpc = Rpc.make(WS_METHODS.secretsAnswerRequest, {
   error: Schema.Union([SecretRequestError, EnvironmentAuthorizationError]),
 });
 
+const WsPaperSubscribeRpc = Rpc.make(WS_METHODS.paperSubscribe, {
+  payload: PaperWorkspaceInput,
+  success: PaperState,
+  error: Schema.Union([PaperError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+const WsPaperBuildRpc = Rpc.make(WS_METHODS.paperBuild, {
+  payload: PaperWorkspaceInput,
+  error: Schema.Union([PaperError, EnvironmentAuthorizationError]),
+});
+const WsPaperSyncFromPdfRpc = Rpc.make(WS_METHODS.paperSyncFromPdf, {
+  payload: PaperSyncFromPdfInput,
+  success: PaperSourceRange,
+  error: Schema.Union([PaperError, EnvironmentAuthorizationError]),
+});
+const WsPaperResolveProposalRpc = Rpc.make(WS_METHODS.paperResolveProposal, {
+  payload: PaperResolveProposalInput,
+  success: PaperProposal,
+  error: Schema.Union([PaperError, EnvironmentAuthorizationError]),
+});
+
 const WsScheduledTasksListWebhookDeliveriesRpc = Rpc.make(
   WS_METHODS.scheduledTasksListWebhookDeliveries,
   {
@@ -1912,6 +1946,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsScheduledTasksRunNowRpc,
   WsScheduledTasksRotateWebhookTokenRpc,
   WsSecretsAnswerRequestRpc,
+  WsPaperSubscribeRpc,
+  WsPaperBuildRpc,
+  WsPaperSyncFromPdfRpc,
+  WsPaperResolveProposalRpc,
   WsScheduledTasksListWebhookDeliveriesRpc,
   WsScheduledTasksGetWebhookDeliveryRpc,
   WsServerReportClientActivityRpc,
