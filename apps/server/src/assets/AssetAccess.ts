@@ -35,6 +35,7 @@ import { MCP_APP_MAX_HTML_BYTES } from "@t3tools/shared/mcpApp";
 import {
   isProjectFaviconPath,
   PROJECT_FAVICON_FALLBACK_MARKER,
+  PROJECT_FAVICON_LATEX_MARKER,
 } from "@t3tools/shared/projectFavicon";
 import { MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH, toolOutputImages } from "@t3tools/shared/toolOutput";
 import * as Clock from "effect/Clock";
@@ -639,7 +640,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       );
       const faviconResolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
       // A lookup in a half-cloned checkout would cache a miss that outlives the clone.
-      const faviconPath = input.projectCheckoutPending
+      const favicon = input.projectCheckoutPending
         ? null
         : yield* faviconResolver
             .resolvePath(workspaceRoot, input.projectFaviconPath ?? undefined)
@@ -652,6 +653,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
                   }),
               ),
             );
+      const faviconPath = typeof favicon === "string" ? favicon : null;
       const isExternalOverride =
         faviconPath !== null &&
         input.projectFaviconPath !== undefined &&
@@ -730,7 +732,10 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         );
         fileName = `${PROJECT_FAVICON_VERSION_PREFIX}${revision}-${path.basename(sourceFaviconPath)}`;
       } else {
-        fileName = PROJECT_FAVICON_FALLBACK_MARKER;
+        fileName =
+          favicon && typeof favicon !== "string"
+            ? PROJECT_FAVICON_LATEX_MARKER
+            : PROJECT_FAVICON_FALLBACK_MARKER;
       }
       break;
     }
