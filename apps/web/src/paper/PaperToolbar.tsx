@@ -70,7 +70,7 @@ export function PaperToolbar({
           onClick={onDiagnostics}
         >
           <ListChecks />
-          {errors}
+          {errors > 0 && errors}
         </Button>
       )}
       <span className="mx-1 shrink-0 tabular-nums text-muted-foreground">

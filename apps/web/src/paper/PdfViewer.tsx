@@ -158,14 +158,14 @@ export function PdfViewer({
     (state) => state.byWorkspace[workspaceKey] ?? EMPTY_PAPER_HIGHLIGHTS,
   );
   const addHighlights = usePaperHighlights((state) => state.add);
+  const clearHighlights = usePaperHighlights((state) => state.clear);
   const layout = layoutPages(documents.active?.sizes ?? [], viewport.width, zoom);
   const pendingLayout = layoutPages(documents.pending?.sizes ?? [], viewport.width, zoom);
   const pendingTop = restoreScrollAnchor(
     pendingLayout,
     captureScrollAnchor(layout, viewport.scrollTop),
   );
-  const showError = (failure: unknown) =>
-    setError(failure instanceof Error ? failure.message : String(failure));
+  const showError = () => setError("Couldn't load the PDF");
   const loadError = useEffectEvent(showError);
 
   useEffect(() => {
@@ -181,8 +181,8 @@ export function PdfViewer({
         setError(null);
         setDocuments((current) => ({ ...current, pending: document }));
       })
-      .catch((failure: unknown) => {
-        if (!abort.signal.aborted) loadError(failure);
+      .catch(() => {
+        if (!abort.signal.aborted) loadError();
       });
     return () => abort.abort();
   }, [url]);
@@ -245,6 +245,8 @@ export function PdfViewer({
     anchorRef.current = anchor;
     const scrollTop = restoreScrollAnchor(layoutPages(next.sizes, viewport.width, zoom), anchor);
     setViewport((current) => ({ ...current, scrollTop }));
+    // Highlights mark positions in the previous build; the text under them may have moved.
+    if (documents.active) clearHighlights(workspaceKey);
     setDocuments({ active: next, pending: null });
     onPageChange(Math.min(anchor.page + 1, next.pdf.numPages), next.pdf.numPages);
   };

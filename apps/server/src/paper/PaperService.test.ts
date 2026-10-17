@@ -379,7 +379,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
     Effect.gen(function* () {
       const { fs, path, cwd } = yield* temporaryPaper;
       const paper = yield* PaperService.PaperService;
-      const pending = yield* paper.propose({ ...input, cwd });
       yield* Effect.forEach(Array.from({ length: 52 }), () =>
         Effect.gen(function* () {
           const proposal = yield* paper.propose({ ...input, cwd });
@@ -390,10 +389,21 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       expect(state.proposals.filter((proposal) => proposal.status === "dismissed")).toHaveLength(
         50,
       );
-      expect(state.proposals.find((proposal) => proposal.id === pending.id)?.status).toBe(
-        "pending",
-      );
       expect(yield* fs.readFileString(path.join(cwd, "main.tex"))).toBe(document);
+    }).pipe(Effect.provide(layerPaper)),
+  );
+
+  it.effect("a revised proposal for the same text supersedes the pending one", () =>
+    Effect.gen(function* () {
+      const { cwd } = yield* temporaryPaper;
+      const paper = yield* PaperService.PaperService;
+      const first = yield* paper.propose({ ...input, cwd });
+      const revised = yield* paper.propose({ ...input, cwd });
+      const state = yield* paper.status(cwd);
+      expect(state.proposals.map(({ id, status }) => ({ id, status }))).toEqual([
+        { id: first.id, status: "dismissed" },
+        { id: revised.id, status: "pending" },
+      ]);
     }).pipe(Effect.provide(layerPaper)),
   );
 

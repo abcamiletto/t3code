@@ -1,5 +1,6 @@
 export const forkIdentity = {
   name: "T3 Paper",
+  wordmark: "Paper",
   appId: "com.abcamiletto.t3paper",
   slug: "t3paper",
   legacyUserDataDirectory: "t3paper-v1",
