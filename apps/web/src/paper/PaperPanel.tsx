@@ -1,7 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
-import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import { PaperError, type PaperState, type ScopedThreadRef } from "@t3tools/contracts";
+import type { PaperState, ScopedThreadRef } from "@t3tools/contracts";
 import { resolveWorkspaceFilePath } from "@t3tools/shared/path";
 import { ScrollText, Wrench } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
@@ -10,7 +9,6 @@ import { workspaceAssetResource } from "~/components/files/filePreviewMode";
 import { Button } from "~/components/ui/button";
 import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
 import { useRightPanelStore } from "~/rightPanelStore";
-import * as Schema from "effect/Schema";
 import { formatEnvironmentQueryError, useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { PaperToolbar } from "./PaperToolbar";
@@ -19,8 +17,6 @@ import { usePaperReveal } from "./openPaperPanel";
 import { paperReviewComment } from "./reviewComment";
 import type { PaperSelection } from "./selection";
 import { paperEnvironment } from "./state";
-
-const isPaperError = Schema.is(PaperError);
 
 const PdfViewer = lazy(() =>
   import("./PdfViewer").then((module) => ({ default: module.PdfViewer })),
@@ -134,18 +130,13 @@ export default function PaperPanel(context: PanelContext) {
   const [position, setPosition] = useState({ page: 0, count: 0 });
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [compilerMissing, setCompilerMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rebuild = async () => {
     setBusy(true);
     setError(null);
     const result = await build({ environmentId, input: { cwd } });
     setBusy(false);
-    if (result._tag === "Failure") {
-      const failure = squashAtomCommandFailure(result);
-      setCompilerMissing(isPaperError(failure) && failure.reason === "compiler_missing");
-      setError(formatEnvironmentQueryError(result.cause));
-    } else setCompilerMissing(false);
+    if (result._tag === "Failure") setError(formatEnvironmentQueryError(result.cause));
   };
   const comment = async (selection: PaperSelection, text: string) => {
     const result = await sync({
@@ -169,9 +160,7 @@ export default function PaperPanel(context: PanelContext) {
   };
   const state = query.data;
   if (!state) return <PaperEmpty label={query.error ?? "Paper"} />;
-  const missing =
-    compilerMissing ||
-    state.build.diagnostics.some((entry) => entry.message.includes("brew install tectonic"));
+  const missing = state.build.diagnostics.some((entry) => entry.code === "compiler_missing");
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PaperToolbar
