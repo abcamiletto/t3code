@@ -328,7 +328,7 @@ const make = Effect.gen(function* () {
       build: {
         ...state.build,
         status: "failed" as const,
-        diagnostics: [{ severity: "error" as const, message: error.message }],
+        diagnostics: [{ severity: "error" as const, message: error.message, code: error.reason }],
       },
     }));
   const requestBuild = (entry: Workspace): Effect.Effect<void> =>
