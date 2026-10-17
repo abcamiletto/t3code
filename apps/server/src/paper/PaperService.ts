@@ -313,7 +313,9 @@ const make = Effect.gen(function* () {
         });
       if (result.code === 0) {
         const sync = yield* readSync(path.join(staging, `${stem}.synctex.gz`), cwd);
-        yield* io(fs.rename(path.join(staging, `${stem}.pdf`), path.join(output, `${stem}.pdf`)));
+        // Overwrite in place: signed asset URLs pin the file's inode, so a rename would 404 open viewers.
+        const pdf = yield* io(fs.readFile(path.join(staging, `${stem}.pdf`)));
+        yield* io(fs.writeFile(path.join(output, `${stem}.pdf`), pdf));
         yield* io(
           fs.rename(
             path.join(staging, `${stem}.synctex.gz`),
@@ -480,7 +482,18 @@ const make = Effect.gen(function* () {
             createdAt,
           };
           const { paper: state } = yield* SubscriptionRef.get(entry.state);
-          yield* persist(entry, [...state.proposals, proposal]);
+          // A revised proposal for the same text replaces the one the user was replying to.
+          const superseded = (candidate: PaperProposal) =>
+            candidate.status === "pending" &&
+            candidate.file === proposal.file &&
+            candidate.startLine <= proposal.endLine &&
+            proposal.startLine <= candidate.endLine;
+          yield* persist(entry, [
+            ...state.proposals.map((candidate) =>
+              superseded(candidate) ? { ...candidate, status: "dismissed" as const } : candidate,
+            ),
+            proposal,
+          ]);
           return proposal;
         }).pipe(entry.lock.withPermits(1));
       }),

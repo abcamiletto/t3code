@@ -9,6 +9,7 @@ export const EMPTY_PAPER_HIGHLIGHTS: readonly PaperHighlight[] = [];
 export const usePaperHighlights = create<{
   byWorkspace: Record<string, readonly PaperHighlight[]>;
   add: (key: string, boxes: readonly PaperPdfBox[]) => void;
+  clear: (key: string) => void;
 }>((set) => ({
   byWorkspace: {},
   add: (key, boxes) =>
@@ -21,4 +22,9 @@ export const usePaperHighlights = create<{
         ],
       },
     })),
+  clear: (key) =>
+    set((state) => {
+      const { [key]: _, ...byWorkspace } = state.byWorkspace;
+      return { byWorkspace };
+    }),
 }));

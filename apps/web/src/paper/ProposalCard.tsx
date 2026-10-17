@@ -10,7 +10,7 @@ import { dispatchSnapShotComposerFocus } from "~/lib/desktopSnapShot";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { TypesetText } from "./TypesetText";
 import { PaperIconButton } from "./PaperIconButton";
-import { paperReviewComment } from "./reviewComment";
+import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import { paperEnvironment } from "./state";
 import { PaperReplyInput } from "./PaperReplyInput";
 
@@ -63,7 +63,7 @@ export function ProposalCard({
         composerDraftTarget,
         paperReviewComment(
           proposal,
-          "Paper edit applied",
+          PAPER_SECTIONS.applied,
           `Applied option ${String.fromCharCode(65 + resolution.optionIndex)}`,
           proposal.options[resolution.optionIndex]!.latex,
         ),
@@ -77,7 +77,7 @@ export function ProposalCard({
       composerDraftTarget,
       paperReviewComment(
         proposal,
-        "Paper proposal",
+        PAPER_SECTIONS.feedback,
         feedback,
         [
           proposal.original,
