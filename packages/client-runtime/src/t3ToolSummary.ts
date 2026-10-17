@@ -1,4 +1,5 @@
 import type { T3McpToolSummaryAction } from "@t3tools/shared/t3McpToolPresentation";
+import { paperRewriteCount } from "./paperToolSummary.ts";
 
 export interface T3ToolSummaryCall {
   readonly input: unknown;
@@ -429,6 +430,12 @@ export function summarizeT3ToolCalls(
       break;
     case "html-preview":
       label = phrase("Previewed", "preview", quantity(selected.length, "HTML page"));
+      break;
+    case "paper-status":
+      label = phrase("Checked", "check", "the paper build");
+      break;
+    case "paper-propose":
+      label = phrase("Proposed", "propose", quantity(paperRewriteCount(selected), "rewrite"));
       break;
     case "html-render":
       label = phrase("Rendered", "render", quantity(selected.length, "HTML page"));
