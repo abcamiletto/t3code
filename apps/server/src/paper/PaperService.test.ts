@@ -40,7 +40,14 @@ const result = (code = 0, stderr = ""): ProcessRunner.ProcessRunOutput => ({
   stderrInvalidUtf8: false,
 });
 const layerNoCompiler = Layer.succeed(ProcessRunner.ProcessRunner, {
-  run: () => Effect.die("Unexpected compilation"),
+  run: () =>
+    Effect.fail(
+      new ProcessRunner.ProcessSpawnError({
+        command: "tectonic",
+        argumentCount: 7,
+        cause: new Error("No compiler"),
+      }),
+    ),
 });
 const layerPaper = PaperService.layer.pipe(Layer.provide(layerNoCompiler));
 const temporaryPaper = Effect.gen(function* () {
@@ -78,6 +85,186 @@ Count:3
   }).pipe(Effect.orDie);
 
 it.layer(NodeServices.layer)("PaperService", (it) => {
+  it.effect("builds unwatched files again so current status reflects edits on disk", () =>
+    Effect.gen(function* () {
+      const { fs, path, cwd } = yield* temporaryPaper;
+      let calls = 0;
+      const runner: ProcessRunner.ProcessRunner["Service"] = {
+        run: (request) =>
+          Effect.gen(function* () {
+            calls++;
+            const source = yield* fs.readFileString(path.join(cwd, "main.tex"));
+            if (source.includes("\\badcommand")) {
+              return result(1, "error: main.tex:3: Undefined control sequence.");
+            }
+            return yield* fakeCompile(request);
+          }).pipe(
+            Effect.provideService(FileSystem.FileSystem, fs),
+            Effect.provideService(Path.Path, path),
+            Effect.orDie,
+          ),
+      };
+      yield* Effect.gen(function* () {
+        const paper = yield* PaperService.PaperService;
+        expect((yield* paper.currentStatus(cwd)).build).toMatchObject({
+          status: "succeeded",
+          revision: 1,
+        });
+        yield* fs.writeFileString(
+          path.join(cwd, "main.tex"),
+          document.replace(input.original, "\\badcommand"),
+        );
+        expect((yield* paper.status(cwd)).build.status).toBe("succeeded");
+        const current = yield* paper.currentStatus(cwd);
+        expect(current.build).toMatchObject({
+          status: "failed",
+          revision: 1,
+          pdfPath: ".t3-paper/build/main.pdf",
+        });
+        expect(current.build.diagnostics[0]).toMatchObject({
+          severity: "error",
+          file: "main.tex",
+          line: 3,
+        });
+        expect(calls).toBe(2);
+      }).pipe(
+        Effect.provide(
+          PaperService.layer.pipe(
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+          ),
+        ),
+      );
+    }),
+  );
+
+  it.effect.each([false, true])(
+    "waits for the requested build rather than an earlier build (watching: %s)",
+    (watched) =>
+      Effect.gen(function* () {
+        const { fs, path, cwd } = yield* temporaryPaper;
+        const firstStarted = yield* Deferred.make<void>();
+        const firstRelease = yield* Deferred.make<void>();
+        const secondStarted = yield* Deferred.make<void>();
+        const secondRelease = yield* Deferred.make<void>();
+        let calls = 0;
+        const runner: ProcessRunner.ProcessRunner["Service"] = {
+          run: (request) =>
+            Effect.gen(function* () {
+              calls++;
+              if (calls === 1) {
+                yield* Deferred.succeed(firstStarted, undefined);
+                yield* Deferred.await(firstRelease);
+                return yield* fakeCompile(request);
+              }
+              yield* Deferred.succeed(secondStarted, undefined);
+              yield* Deferred.await(secondRelease);
+              return result(1, "error: main.tex:3: Undefined control sequence.");
+            }).pipe(
+              Effect.provideService(FileSystem.FileSystem, fs),
+              Effect.provideService(Path.Path, path),
+            ),
+        };
+        yield* Effect.gen(function* () {
+          const paper = yield* PaperService.PaperService;
+          if (watched) {
+            yield* paper.subscribe(cwd).pipe(Stream.runDrain, Effect.forkScoped);
+          } else {
+            yield* paper.build(cwd);
+          }
+          yield* Deferred.await(firstStarted);
+          if (watched) yield* paper.build(cwd);
+          yield* fs.writeFileString(
+            path.join(cwd, "main.tex"),
+            document.replace(input.original, "\\badcommand"),
+          );
+          const status = yield* paper.currentStatus(cwd).pipe(Effect.forkScoped);
+          yield* Deferred.succeed(firstRelease, undefined);
+          yield* Deferred.await(secondStarted);
+          yield* Deferred.succeed(secondRelease, undefined);
+          expect((yield* Fiber.join(status)).build).toMatchObject({
+            status: "failed",
+            revision: 1,
+          });
+          expect(calls).toBe(2);
+        }).pipe(
+          Effect.provide(
+            PaperService.layer.pipe(
+              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+              Layer.provide(
+                Layer.succeed(FileSystem.FileSystem, { ...fs, watch: () => Stream.never }),
+              ),
+            ),
+          ),
+        );
+      }),
+  );
+
+  it.effect("reuses the watched build and returns watched status without requesting another", () =>
+    Effect.gen(function* () {
+      const { fs, path, cwd } = yield* temporaryPaper;
+      const started = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      let calls = 0;
+      const runner: ProcessRunner.ProcessRunner["Service"] = {
+        run: (request) =>
+          Effect.gen(function* () {
+            calls++;
+            yield* Deferred.succeed(started, undefined);
+            yield* Deferred.await(release);
+            return yield* fakeCompile(request);
+          }).pipe(
+            Effect.provideService(FileSystem.FileSystem, fs),
+            Effect.provideService(Path.Path, path),
+          ),
+      };
+      const layer = PaperService.layer.pipe(
+        Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+        Layer.provide(Layer.succeed(FileSystem.FileSystem, { ...fs, watch: () => Stream.never })),
+      );
+      yield* Effect.gen(function* () {
+        const paper = yield* PaperService.PaperService;
+        yield* paper.subscribe(cwd).pipe(Stream.runDrain, Effect.forkScoped);
+        yield* Deferred.await(started);
+        const status = yield* paper.currentStatus(cwd).pipe(Effect.forkScoped);
+        yield* Deferred.succeed(release, undefined);
+        const current = yield* Fiber.join(status);
+        expect(current.build).toMatchObject({ status: "succeeded", revision: 1 });
+        expect(yield* paper.currentStatus(cwd)).toEqual(current);
+        expect(calls).toBe(1);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect("builds before the first proposal to provide SyncTeX boxes", () =>
+    Effect.gen(function* () {
+      const { fs, path, cwd } = yield* temporaryPaper;
+      let calls = 0;
+      const runner: ProcessRunner.ProcessRunner["Service"] = {
+        run: (request) => {
+          calls++;
+          return fakeCompile(request).pipe(
+            Effect.provideService(FileSystem.FileSystem, fs),
+            Effect.provideService(Path.Path, path),
+          );
+        },
+      };
+      yield* Effect.gen(function* () {
+        const paper = yield* PaperService.PaperService;
+        const proposal = yield* paper.propose({ ...input, cwd });
+        expect(proposal.boxes.length).toBeGreaterThan(0);
+        expect((yield* paper.status(cwd)).build.status).toBe("succeeded");
+        expect((yield* paper.propose({ ...input, cwd })).boxes).toEqual(proposal.boxes);
+        expect(calls).toBe(1);
+      }).pipe(
+        Effect.provide(
+          PaperService.layer.pipe(
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+          ),
+        ),
+      );
+    }),
+  );
+
   it.effect("detects root documents and prefers main.tex over other documentclass files", () =>
     Effect.gen(function* () {
       const { fs, path, cwd } = yield* temporaryPaper;
@@ -223,6 +410,10 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         const failed = yield* Deferred.make<PaperState>();
         let calls = 0;
         let watching = 0;
+        const proposal = yield* PaperService.PaperService.pipe(
+          Effect.flatMap((paper) => paper.propose({ ...input, cwd })),
+          Effect.provide(layerPaper),
+        );
         const runner: ProcessRunner.ProcessRunner["Service"] = {
           run: (request) =>
             Effect.gen(function* () {
@@ -265,7 +456,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         );
         yield* Effect.gen(function* () {
           const paper = yield* PaperService.PaperService;
-          const proposal = yield* paper.propose({ ...input, cwd });
           const subscriber = yield* paper.subscribe(cwd).pipe(
             Stream.runForEach((state) => {
               if (state.build.revision === 2 && state.build.status === "succeeded")
@@ -338,6 +528,10 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         const second = yield* Deferred.make<PaperState>();
         let watching = 0;
         let calls = 0;
+        const proposal = yield* PaperService.PaperService.pipe(
+          Effect.flatMap((paper) => paper.propose({ ...input, cwd })),
+          Effect.provide(layerPaper),
+        );
         const runner: ProcessRunner.ProcessRunner["Service"] = {
           run: (request) => {
             calls++;
@@ -374,7 +568,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         );
         yield* Effect.gen(function* () {
           const paper = yield* PaperService.PaperService;
-          const proposal = yield* paper.propose({ ...input, cwd });
           const subscriber = yield* paper.subscribe(cwd).pipe(
             Stream.runForEach((state) => {
               if (state.build.revision === 1 && state.build.status === "succeeded")
@@ -458,6 +651,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         {
           severity: "error",
           message: "Tectonic is not installed. Install it with `brew install tectonic`.",
+          code: "compiler_missing",
         },
       ]);
     }),
