@@ -58,7 +58,7 @@ const PaperStatusTool = Tool.make("paper_status", {
 
 const PaperProposeEditsTool = Tool.make("paper_propose_edits", {
   description:
-    'Default to this tool for review comments whose section is "Paper comment" or "Paper proposal", and requests to rewrite paper text. Offer 2–4 genuinely different replacement LaTeX options, each with a short note. Use a minimal exact original span occurring once in the workspace-relative file. Never also edit that span directly. The user selects an option for T3 to apply. After proposal feedback, propose revised options again rather than editing directly, unless explicitly told to apply.',
+    'Default to this tool for review comments whose section is "Paper comment" or "Paper proposal", and requests to rewrite paper text. Offer 2–4 genuinely different replacement LaTeX options, each with a short note; the user sees them as A, B, C, D, so refer to them by letter. Use a minimal exact original span occurring once in the workspace-relative file. Never also edit that span directly. The user selects an option for T3 to apply. After proposal feedback, propose revised options again rather than editing directly, unless explicitly told to apply.',
   parameters: Schema.Struct({
     file: Schema.String,
     original: Schema.String.check(Schema.isMinLength(1)),

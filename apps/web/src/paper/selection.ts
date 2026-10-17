@@ -57,16 +57,18 @@ export function readPaperSelection(
     }
   }
   const bounds = root.getBoundingClientRect();
+  const last = rects.at(-1)!;
   return {
     formLeft: Math.max(
       8,
-      Math.min(root.clientWidth - 272, first.left - bounds.left) + root.scrollLeft,
+      Math.min(root.clientWidth - 272, last.right - bounds.left - 256) + root.scrollLeft,
     ),
     text: selection.toString(),
     page,
     ...point,
     boxes,
-    left: Math.max(8, Math.min(root.clientWidth - 40, first.left - bounds.left)) + root.scrollLeft,
-    top: Math.max(8, first.top - bounds.top + root.scrollTop - 30),
+    left:
+      Math.max(8, Math.min(root.clientWidth - 40, last.right - bounds.left + 4)) + root.scrollLeft,
+    top: last.bottom - bounds.top + root.scrollTop + 4,
   };
 }

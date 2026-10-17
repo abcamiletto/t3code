@@ -26,7 +26,7 @@ it.effect(
       const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "paper-mcp-test-" });
       yield* fs.writeFileString(
         path.join(cwd, "main.tex"),
-        "\\documentclass{article}\nAn original sentence.\n",
+        `\\documentclass{article}\n${Array.from({ length: 8 }, (_, index) => `Sentence ${index}.`).join("\n")}\n`,
       );
       const threadId = ThreadId.make("paper-thread");
       const projectId = ProjectId.make("paper-project");
@@ -75,7 +75,7 @@ it.effect(
           (index) =>
             mcp.propose(threadId, {
               file: "main.tex",
-              original: "An original sentence.",
+              original: `Sentence ${index}.`,
               options: [{ latex: "A clearer sentence." }, { latex: "A shorter sentence." }],
               ...(index === 0 ? { summary: "Tighten this sentence" } : {}),
             }),

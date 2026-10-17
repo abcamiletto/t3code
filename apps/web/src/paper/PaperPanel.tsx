@@ -14,7 +14,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { PaperToolbar } from "./PaperToolbar";
 import { ProposalCard } from "./ProposalCard";
 import { usePaperReveal } from "./openPaperPanel";
-import { paperReviewComment } from "./reviewComment";
+import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import type { PaperSelection } from "./selection";
 import { paperEnvironment } from "./state";
 
@@ -154,7 +154,10 @@ export default function PaperPanel(context: PanelContext) {
       return false;
     }
     const range = result.value;
-    addComment(composerDraftTarget, paperReviewComment(range, "Paper comment", text, range.source));
+    addComment(
+      composerDraftTarget,
+      paperReviewComment(range, PAPER_SECTIONS.comment, text, range.source),
+    );
     setError(null);
     return true;
   };
