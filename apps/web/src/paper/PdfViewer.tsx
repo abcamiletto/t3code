@@ -1,0 +1,316 @@
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import type { PaperProposal, ScopedThreadRef } from "@t3tools/contracts";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import type { DraftId } from "~/composerDraftStore";
+import { observeResize } from "~/lib/observeResize";
+import { EMPTY_PAPER_HIGHLIGHTS, usePaperHighlights, type PaperHighlight } from "./commentStore";
+import {
+  captureScrollAnchor,
+  layoutPages,
+  restoreScrollAnchor,
+  visiblePages,
+  type PageLayout,
+  type ScrollAnchor,
+} from "./geometry";
+import { readPaperDocument, type PaperDocument } from "./pdf";
+import { PdfPage } from "./PdfPage";
+import { ProposalOverlay } from "./ProposalOverlay";
+import { readPaperSelection, type PaperSelection } from "./selection";
+import { SelectionComment } from "./SelectionComment";
+
+type PaperViewerContext = {
+  threadRef: ScopedThreadRef;
+  cwd: string;
+  composerDraftTarget: ScopedThreadRef | DraftId;
+  proposals: readonly PaperProposal[];
+  reveal: { proposalId: string; requestId: number } | undefined;
+};
+
+function DocumentLayer({
+  document,
+  layout,
+  scrollTop,
+  height,
+  hidden,
+  onReady,
+  onError,
+  comments,
+  context,
+}: {
+  document: PaperDocument;
+  layout: PageLayout[];
+  scrollTop: number;
+  height: number;
+  hidden: boolean;
+  onReady: (id: string) => void;
+  onError: (error: unknown) => void;
+  comments: readonly PaperHighlight[];
+  context: PaperViewerContext;
+}) {
+  const pages = visiblePages(layout, scrollTop, height);
+  const readyPages = useRef(new Set<string>());
+  const ready = (page: number, rendered: boolean) => {
+    const key = `${page}:${layout[page - 1]!.scale}`;
+    if (!rendered) {
+      readyPages.current.delete(key);
+      return;
+    }
+    readyPages.current.add(key);
+    if (pages.every((index) => readyPages.current.has(`${index + 1}:${layout[index]!.scale}`)))
+      onReady(document.id);
+  };
+  const last = layout.at(-1);
+  return (
+    <div
+      className={hidden ? "pointer-events-none invisible absolute inset-x-0 top-0" : "relative"}
+      aria-hidden={hidden || undefined}
+      style={{
+        height: last ? last.top + last.height + 16 : 0,
+        minWidth: Math.max(0, ...layout.map((page) => page.width)) + 64,
+      }}
+    >
+      {pages.map((index) => {
+        const page = layout[index]!;
+        return (
+          <div
+            key={index}
+            data-paper-page={hidden ? undefined : index + 1}
+            className="absolute left-1/2 -translate-x-1/2 bg-white shadow-sm"
+            style={{ top: page.top, width: page.width, height: page.height }}
+          >
+            <PdfPage
+              pdf={document.pdf}
+              page={index + 1}
+              layout={page}
+              onReady={ready}
+              onError={onError}
+            />
+            {!hidden && (
+              <>
+                {comments
+                  .filter((box) => box.page === index + 1)
+                  .map((box) => (
+                    <div
+                      key={box.id}
+                      className="pointer-events-none absolute z-10 bg-warning/15"
+                      style={{
+                        left: box.x * page.scale,
+                        top: box.y * page.scale,
+                        width: box.width * page.scale,
+                        height: box.height * page.scale,
+                      }}
+                    />
+                  ))}
+                {context.proposals
+                  .filter(
+                    (proposal) =>
+                      proposal.status === "pending" &&
+                      proposal.boxes.some((box) => box.page === index + 1),
+                  )
+                  .map((proposal) => (
+                    <ProposalOverlay
+                      key={`${proposal.id}:${context.reveal?.proposalId === proposal.id ? context.reveal.requestId : 0}`}
+                      proposal={proposal}
+                      page={index + 1}
+                      scale={page.scale}
+                      {...context}
+                      revealed={context.reveal?.proposalId === proposal.id}
+                    />
+                  ))}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function PdfViewer({
+  url,
+  zoom,
+  onPageChange,
+  onComment,
+  assetError,
+  ...context
+}: PaperViewerContext & {
+  url: string | null;
+  assetError: string | null;
+  zoom: number;
+  onPageChange: (page: number, count: number) => void;
+  onComment: (selection: PaperSelection, comment: string) => Promise<boolean>;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const ownedDocuments = useRef(new Set<PaperDocument>());
+  const anchorRef = useRef<ScrollAnchor>({ page: 0, offset: 0 });
+  const [viewport, setViewport] = useState({ width: 0, height: 0, scrollTop: 0 });
+  const [documents, setDocuments] = useState<{
+    active: PaperDocument | null;
+    pending: PaperDocument | null;
+  }>({ active: null, pending: null });
+  const [error, setError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<PaperSelection | null>(null);
+  const workspaceKey = `${scopedThreadKey(context.threadRef)}:${context.cwd}`;
+  const comments = usePaperHighlights(
+    (state) => state.byWorkspace[workspaceKey] ?? EMPTY_PAPER_HIGHLIGHTS,
+  );
+  const addHighlights = usePaperHighlights((state) => state.add);
+  const layout = layoutPages(documents.active?.sizes ?? [], viewport.width, zoom);
+  const pendingLayout = layoutPages(documents.pending?.sizes ?? [], viewport.width, zoom);
+  const pendingTop = restoreScrollAnchor(
+    pendingLayout,
+    captureScrollAnchor(layout, viewport.scrollTop),
+  );
+  const showError = (failure: unknown) =>
+    setError(failure instanceof Error ? failure.message : String(failure));
+  const loadError = useEffectEvent(showError);
+
+  useEffect(() => {
+    if (url === null) return;
+    const abort = new AbortController();
+    void readPaperDocument(url, abort.signal)
+      .then((document) => {
+        if (abort.signal.aborted) {
+          void document.pdf.loadingTask.destroy();
+          return;
+        }
+        ownedDocuments.current.add(document);
+        setError(null);
+        setDocuments((current) => ({ ...current, pending: document }));
+      })
+      .catch((failure: unknown) => {
+        if (!abort.signal.aborted) loadError(failure);
+      });
+    return () => abort.abort();
+  }, [url]);
+
+  // The viewer owns workers so React Strict Mode can replay a page's effects safely.
+  useEffect(() => {
+    for (const document of ownedDocuments.current) {
+      if (document !== documents.active && document !== documents.pending) {
+        void document.pdf.loadingTask.destroy();
+        ownedDocuments.current.delete(document);
+      }
+    }
+  }, [documents]);
+  useEffect(
+    () => () => {
+      for (const document of ownedDocuments.current) void document.pdf.loadingTask.destroy();
+      ownedDocuments.current.clear();
+    },
+    [],
+  );
+
+  useEffect(
+    () =>
+      observeResize(rootRef.current!, ([entry]) => {
+        setViewport((current) => ({
+          ...current,
+          width: entry!.contentRect.width,
+          height: entry!.contentRect.height,
+        }));
+      }),
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (layout.length > 0)
+      rootRef.current!.scrollTop = restoreScrollAnchor(layout, anchorRef.current);
+  }, [layout]);
+
+  const lastReveal = useRef<typeof context.reveal>(undefined);
+  const revealProposal = context.proposals.find(
+    (proposal) => proposal.id === context.reveal?.proposalId,
+  );
+  const revealBox = revealProposal?.boxes[0];
+  useLayoutEffect(() => {
+    if (!context.reveal || !revealBox || !documents.active || lastReveal.current === context.reveal)
+      return;
+    const page = layout[revealBox.page - 1];
+    if (page) {
+      lastReveal.current = context.reveal;
+      const top = page.top + revealBox.y * page.scale;
+      rootRef.current!.scrollTop = top;
+      anchorRef.current = captureScrollAnchor(layout, top);
+    }
+  }, [context.reveal, documents.active, revealBox, layout]);
+
+  const ready = (id: string) => {
+    if (documents.pending?.id !== id) return;
+    const next = documents.pending;
+    const anchor = captureScrollAnchor(layout, rootRef.current!.scrollTop);
+    anchorRef.current = anchor;
+    const scrollTop = restoreScrollAnchor(layoutPages(next.sizes, viewport.width, zoom), anchor);
+    setViewport((current) => ({ ...current, scrollTop }));
+    setDocuments({ active: next, pending: null });
+    onPageChange(Math.min(anchor.page + 1, next.pdf.numPages), next.pdf.numPages);
+  };
+
+  const submitComment = async (selected: PaperSelection, text: string) => {
+    const success = await onComment(selected, text);
+    if (success) {
+      addHighlights(workspaceKey, selected.boxes);
+      window.getSelection()?.removeAllRanges();
+    }
+    return success;
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative min-h-0 flex-1 overflow-auto bg-muted/25"
+      onScroll={(event) => {
+        const { scrollTop } = event.currentTarget;
+        const anchor = captureScrollAnchor(layout, scrollTop);
+        anchorRef.current = anchor;
+        setViewport((current) => ({ ...current, scrollTop }));
+        if (documents.active) onPageChange(anchor.page + 1, documents.active.pdf.numPages);
+      }}
+      onPointerUp={(event) => {
+        if (event.target instanceof Element && !event.target.closest("[data-paper-text-layer]"))
+          return;
+        if (documents.active)
+          setSelection(readPaperSelection(event.currentTarget, documents.active.sizes));
+      }}
+      onKeyUp={(event) => {
+        if (event.key === "Shift" && documents.active)
+          setSelection(readPaperSelection(event.currentTarget, documents.active.sizes));
+      }}
+    >
+      {viewport.width > 0 &&
+        [documents.active, documents.pending].map(
+          (document) =>
+            document && (
+              <DocumentLayer
+                key={document.id}
+                document={document}
+                hidden={document !== documents.active}
+                layout={document === documents.active ? layout : pendingLayout}
+                scrollTop={document === documents.active ? viewport.scrollTop : pendingTop}
+                height={viewport.height}
+                onReady={ready}
+                onError={showError}
+                comments={comments}
+                context={context}
+              />
+            ),
+        )}
+      {selection && (
+        <SelectionComment
+          key={`${selection.page}:${selection.x}:${selection.y}`}
+          selection={selection}
+          onSubmit={submitComment}
+          onCancel={() => setSelection(null)}
+        />
+      )}
+      {(error || assetError) && (
+        <div
+          role="alert"
+          className="sticky bottom-0 border-t border-border bg-background px-3 py-2 text-xs text-destructive"
+        >
+          {error ?? assetError}
+        </div>
+      )}
+    </div>
+  );
+}

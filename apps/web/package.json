@@ -66,6 +66,7 @@
     "lucide-react": "^0.564.0",
     "morphicons": "^1.7.1",
     "pele": "^1.8.0",
+    "pdfjs-dist": "6.4.299",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-markdown": "^10.1.0",
