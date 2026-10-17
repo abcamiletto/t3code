@@ -114,7 +114,10 @@ function DocumentLayer({
                       page={index + 1}
                       scale={page.scale}
                       {...context}
-                      revealed={context.reveal?.proposalId === proposal.id}
+                      revealed={
+                        context.reveal?.proposalId === proposal.id &&
+                        proposal.boxes[0]?.page === index + 1
+                      }
                     />
                   ))}
               </>

@@ -124,7 +124,7 @@ interface RightPanelStoreState {
   openProactive: (
     ref: ScopedThreadRef,
     request:
-      | Extract<RightPanelSurface, { kind: "pull-request" | "pull-requests" }>
+      | Extract<RightPanelSurface, { kind: "pull-request" | "pull-requests" | "paper" }>
       | { kind: "diff"; turnId: RunId },
     expectedUserActionRevision: number,
     activateExisting?: boolean,
