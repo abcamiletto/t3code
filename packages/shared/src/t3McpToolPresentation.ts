@@ -64,7 +64,9 @@ export type T3McpToolSummaryAction =
   | "browser"
   | "device"
   | "html-preview"
-  | "html-render";
+  | "html-render"
+  | "paper-status"
+  | "paper-propose";
 
 export interface T3McpToolDefinition {
   readonly displayName: string;
@@ -330,6 +332,11 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
   ),
   t3_thread_send_attachments: tool(["Send", "Sending", "Sent", "attachments"], "attachment-send"),
   html_preview: tool(["Preview", "Previewing", "Previewed", "an HTML page"], "html-preview"),
+  paper_status: tool(["Check", "Checking", "Checked", "the paper build"], "paper-status"),
+  paper_propose_edits: tool(
+    ["Propose", "Proposing", "Proposed", "paper rewrites"],
+    "paper-propose",
+  ),
   html_render: tool(["Render", "Rendering", "Rendered", "an HTML page"], "html-render"),
 };
 
