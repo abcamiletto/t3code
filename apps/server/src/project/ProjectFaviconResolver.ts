@@ -18,6 +18,8 @@ const FAVICON_CACHE_CAPACITY = 512;
 const FAVICON_POSITIVE_CACHE_TTL = Duration.minutes(10);
 const FAVICON_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
+export type ProjectFaviconResolution = string | { readonly _tag: "latex" } | null;
+
 function faviconCacheKey(cwd: string, faviconPath?: string): string {
   return `${faviconPath ?? ""}\0${cwd}`;
 }
@@ -87,6 +89,7 @@ export class ProjectFaviconResolutionError extends Schema.TaggedError<ProjectFav
       "resolve-path",
       "stat-candidate",
       "read-source",
+      "read-root",
     ]),
     workspaceRoot: Schema.String,
     relativePath: Schema.optional(Schema.String),
@@ -110,7 +113,7 @@ export class ProjectFaviconResolver extends Context.Service<
     readonly resolvePath: (
       cwd: string,
       faviconPath?: string,
-    ) => Effect.Effect<string | null, ProjectFaviconResolutionError>;
+    ) => Effect.Effect<ProjectFaviconResolution, ProjectFaviconResolutionError>;
     /** Forgets cached lookups for a workspace whose files changed, such as a finished clone. */
     readonly invalidate: (cwd: string) => Effect.Effect<void>;
   }
@@ -257,7 +260,7 @@ export const make = Effect.gen(function* () {
   const resolvePathUncached = Effect.fn("ProjectFaviconResolver.resolvePathUncached")(function* (
     cwd: string,
     faviconPath?: string,
-  ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
+  ): Effect.fn.Return<ProjectFaviconResolution, ProjectFaviconResolutionError> {
     const projectCwd = yield* workspacePaths.normalizeWorkspaceRoot(cwd).pipe(
       Effect.mapError(
         (cause) =>
@@ -294,12 +297,31 @@ export const make = Effect.gen(function* () {
       return wellKnown;
     }
 
-    return yield* firstInOrder(ICON_SOURCE_FILES, (sourceFile) =>
+    const fromSource = yield* firstInOrder(ICON_SOURCE_FILES, (sourceFile) =>
       findIconFromSource(projectCwd, sourceFile),
     );
+    if (fromSource) {
+      return fromSource;
+    }
+
+    const entries = yield* fileSystem.readDirectory(projectCwd).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectFaviconResolutionError({
+            operation: "read-root",
+            workspaceRoot: projectCwd,
+            cause,
+          }),
+      ),
+    );
+    return entries.some((entry) => entry.endsWith(".tex")) ? { _tag: "latex" } : null;
   });
 
-  const faviconCache = yield* Cache.makeWith<string, string | null, ProjectFaviconResolutionError>(
+  const faviconCache = yield* Cache.makeWith<
+    string,
+    ProjectFaviconResolution,
+    ProjectFaviconResolutionError
+  >(
     (key) => {
       const { cwd, faviconPath } = parseFaviconCacheKey(key);
       return resolvePathUncached(cwd, faviconPath);
@@ -307,7 +329,7 @@ export const make = Effect.gen(function* () {
     {
       capacity: FAVICON_CACHE_CAPACITY,
       timeToLive: Exit.match({
-        onSuccess: (value: string | null) =>
+        onSuccess: (value: ProjectFaviconResolution) =>
           value === null ? FAVICON_NEGATIVE_CACHE_TTL : FAVICON_POSITIVE_CACHE_TTL,
         onFailure: () => Duration.zero,
       }),
@@ -319,8 +341,8 @@ export const make = Effect.gen(function* () {
   )(function* (cwd, faviconPath) {
     const key = faviconCacheKey(cwd, faviconPath);
     const cached = yield* Cache.get(faviconCache, key);
-    if (cached === null) {
-      return null;
+    if (typeof cached !== "string") {
+      return cached;
     }
 
     const stats = yield* optionOnNotFound(fileSystem.stat(cached)).pipe(

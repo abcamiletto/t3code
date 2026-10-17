@@ -3,10 +3,37 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   getProjectFaviconCacheKey,
   isProjectFaviconFallbackUrl,
+  isProjectLatexFaviconUrl,
   PROJECT_FAVICON_FALLBACK_MARKER,
+  PROJECT_FAVICON_LATEX_MARKER,
 } from "./projectFavicon.ts";
 
 describe("project favicon", () => {
+  it("identifies LaTeX asset URLs by their dedicated filename", () => {
+    expect(
+      isProjectLatexFaviconUrl(
+        `https://environment.example/api/assets/token/${PROJECT_FAVICON_LATEX_MARKER}?v=1`,
+      ),
+    ).toBe(true);
+    expect(isProjectLatexFaviconUrl(`/api/assets/token/${PROJECT_FAVICON_LATEX_MARKER}`)).toBe(
+      true,
+    );
+    expect(isProjectLatexFaviconUrl(`/api/assets/token/${PROJECT_FAVICON_FALLBACK_MARKER}`)).toBe(
+      false,
+    );
+    expect(
+      isProjectLatexFaviconUrl(
+        `/api/assets/token/favicon.svg?name=${PROJECT_FAVICON_LATEX_MARKER}`,
+      ),
+    ).toBe(false);
+    expect(
+      isProjectLatexFaviconUrl(`/api/assets/token/prefix-${PROJECT_FAVICON_LATEX_MARKER}`),
+    ).toBe(false);
+    expect(isProjectLatexFaviconUrl(null)).toBe(false);
+    expect(isProjectLatexFaviconUrl(undefined)).toBe(false);
+    expect(isProjectLatexFaviconUrl("http://[")).toBe(false);
+  });
+
   it("uses the project and versioned filename as the cache identity", () => {
     const firstUrl = "https://environment.example/api/assets/first-signed-token/v1-20-favicon.svg";
     const refreshedUrl =
