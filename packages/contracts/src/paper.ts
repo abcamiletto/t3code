@@ -8,6 +8,24 @@ import { IsoDateTime, NonNegativeInt, PositiveInt, TrimmedNonEmptyString } from 
  * only render it. Paths are relative to `cwd` with forward slashes.
  */
 
+const PAPER_FAILURE_MESSAGES = {
+  not_latex: "This workspace has no LaTeX document.",
+  compiler_missing: "Tectonic is not installed. Install it with `brew install tectonic`.",
+  workspace_unavailable: "This workspace is not available.",
+  proposal_not_found: "This proposal no longer exists.",
+  proposal_resolved: "This proposal was already resolved.",
+  proposal_stale: "The original text changed, so this option can no longer be applied.",
+  invalid_option: "That option does not exist.",
+  original_not_found: "The original text does not appear exactly once in the file.",
+  sync_unavailable: "No SyncTeX data for the current build.",
+  io_failed: "Could not read or write the paper files.",
+} as const;
+
+export const PaperFailureReason = Schema.Literals(
+  Object.keys(PAPER_FAILURE_MESSAGES) as Array<keyof typeof PAPER_FAILURE_MESSAGES>,
+);
+export type PaperFailureReason = typeof PaperFailureReason.Type;
+
 export const PaperBuildStatus = Schema.Literals(["idle", "building", "succeeded", "failed"]);
 export type PaperBuildStatus = typeof PaperBuildStatus.Type;
 
@@ -16,6 +34,8 @@ export const PaperDiagnostic = Schema.Struct({
   message: Schema.String,
   file: Schema.optionalKey(Schema.String),
   line: Schema.optionalKey(PositiveInt),
+  /** Set when the build failed before the compiler ran, e.g. `compiler_missing`. */
+  code: Schema.optionalKey(PaperFailureReason),
 });
 export type PaperDiagnostic = typeof PaperDiagnostic.Type;
 
@@ -117,24 +137,6 @@ export const PaperProposalReference = Schema.Struct({
   proposalId: Schema.String,
 });
 export type PaperProposalReference = typeof PaperProposalReference.Type;
-
-const PAPER_FAILURE_MESSAGES = {
-  not_latex: "This workspace has no LaTeX document.",
-  compiler_missing: "Tectonic is not installed. Install it with `brew install tectonic`.",
-  workspace_unavailable: "This workspace is not available.",
-  proposal_not_found: "This proposal no longer exists.",
-  proposal_resolved: "This proposal was already resolved.",
-  proposal_stale: "The original text changed, so this option can no longer be applied.",
-  invalid_option: "That option does not exist.",
-  original_not_found: "The original text does not appear exactly once in the file.",
-  sync_unavailable: "No SyncTeX data for the current build.",
-  io_failed: "Could not read or write the paper files.",
-} as const;
-
-export const PaperFailureReason = Schema.Literals(
-  Object.keys(PAPER_FAILURE_MESSAGES) as Array<keyof typeof PAPER_FAILURE_MESSAGES>,
-);
-export type PaperFailureReason = typeof PaperFailureReason.Type;
 
 export class PaperError extends Schema.TaggedError<PaperError>()("PaperError", {
   reason: PaperFailureReason,
