@@ -7,7 +7,6 @@ import {
   type PaperState,
   type PaperSyncFromPdfInput,
 } from "@t3tools/contracts";
-import * as NodeZlib from "node:zlib";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -27,7 +26,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as ProcessRunner from "../processRunner.ts";
 import { parseDiagnostics } from "./diagnostics.ts";
 import { originalRange, refineSource } from "./source.ts";
-import { backwardSearch, forwardSearch, parseSyncTex, type SyncTex } from "./synctex.ts";
+import { backwardSearch, forwardSearch } from "./synctex.ts";
 
 interface ProposeInput {
   readonly cwd: string;
@@ -76,7 +75,7 @@ const make = Effect.gen(function* () {
       state: SubscriptionRef.SubscriptionRef<{ paper: PaperState; completedBuild: number }>;
       buildNumber: number;
       lock: Semaphore.Semaphore;
-      sync: SyncTex | null;
+      syncPdf: string | null;
       running: boolean;
       dirty: boolean;
       subscribers: number;
@@ -146,14 +145,6 @@ const make = Effect.gen(function* () {
         mainFile: main.includes("main.tex") ? "main.tex" : (main[0] ?? null),
       };
     });
-  const readSync = (file: string, cwd: string) =>
-    Effect.gen(function* () {
-      const bytes = yield* io(fs.readFile(file));
-      return yield* Effect.try({
-        try: () => parseSyncTex(NodeZlib.gunzipSync(bytes).toString("utf8"), cwd),
-        catch: (cause) => new PaperError({ reason: "sync_unavailable", cause }),
-      });
-    });
   const acquireWorkspace = (inputCwd: string) =>
     Effect.gen(function* () {
       const cwd = yield* fs
@@ -184,19 +175,13 @@ const make = Effect.gen(function* () {
         completedBuild: 0,
       });
       const lock = yield* Semaphore.make(1);
-      const sync =
-        pdfPath === null
-          ? null
-          : yield* readSync(path.join(cwd, pdfPath.replace(/\.pdf$/, ".synctex.gz")), cwd).pipe(
-              Effect.orElseSucceed(() => null),
-            );
       const entry = {
         cwd,
         references: 1,
         state,
         buildNumber: 0,
         lock,
-        sync,
+        syncPdf: pdfPath === null ? null : path.join(cwd, pdfPath),
         running: false,
         dirty: false,
         subscribers: 0,
@@ -240,6 +225,17 @@ const make = Effect.gen(function* () {
         paper: { ...current.paper, proposals: kept },
       }));
     });
+  // Proposals can still be reviewed in chat or located by PDF.js when source navigation is unavailable.
+  const proposalBoxes = (entry: Workspace, file: string, startLine: number, endLine: number) =>
+    entry.syncPdf === null
+      ? Effect.succeed([])
+      : forwardSearch(runner, {
+          cwd: entry.cwd,
+          pdf: entry.syncPdf,
+          file: path.resolve(entry.cwd, file),
+          startLine,
+          endLine,
+        }).pipe(Effect.catchTags({ PaperError: () => Effect.succeed([]) }));
   const refreshProposals = (entry: Workspace) =>
     Effect.gen(function* () {
       const { paper: state } = yield* SubscriptionRef.get(entry.state);
@@ -259,10 +255,7 @@ const make = Effect.gen(function* () {
             ...proposal,
             startLine: range.startLine,
             endLine: range.endLine,
-            boxes:
-              entry.sync === null
-                ? []
-                : forwardSearch(entry.sync, proposal.file, range.startLine, range.endLine),
+            boxes: yield* proposalBoxes(entry, proposal.file, range.startLine, range.endLine),
           });
         }
       }
@@ -331,7 +324,6 @@ const make = Effect.gen(function* () {
           message: "Tectonic could not compile the document.",
         });
       if (result.code === 0) {
-        const sync = yield* readSync(path.join(staging, `${stem}.synctex.gz`), cwd);
         // Overwrite in place: signed asset URLs pin the file's inode, so a rename would 404 open viewers.
         const pdf = yield* io(fs.readFile(path.join(staging, `${stem}.pdf`)));
         yield* io(fs.writeFile(path.join(output, `${stem}.pdf`), pdf));
@@ -341,7 +333,7 @@ const make = Effect.gen(function* () {
             path.join(output, `${stem}.synctex.gz`),
           ),
         );
-        entry.sync = sync;
+        entry.syncPdf = path.join(output, `${stem}.pdf`);
         yield* refreshProposals(entry);
       }
       const finished = yield* Clock.currentTimeMillis;
@@ -461,11 +453,8 @@ const make = Effect.gen(function* () {
     syncFromPdf: (input) =>
       withWorkspace(input.cwd, (entry) =>
         Effect.gen(function* () {
-          const hit =
-            entry.sync === null
-              ? undefined
-              : backwardSearch(entry.sync, input.page, input.x, input.y);
-          if (hit === undefined) return yield* new PaperError({ reason: "sync_unavailable" });
+          if (entry.syncPdf === null) return yield* new PaperError({ reason: "sync_unavailable" });
+          const hit = yield* backwardSearch(runner, { ...input, pdf: entry.syncPdf });
           const file = yield* sourceFile(input.cwd, hit.file);
           const source = yield* io(fs.readFileString(file.absolute));
           return refineSource(file.relative, source, hit.line, input.text);
@@ -474,7 +463,7 @@ const make = Effect.gen(function* () {
     propose: (input) =>
       withWorkspace(input.cwd, (entry) =>
         Effect.gen(function* () {
-          if (entry.sync === null) yield* awaitCurrentBuild(entry);
+          if (entry.syncPdf === null) yield* awaitCurrentBuild(entry);
           return yield* Effect.gen(function* () {
             const file = yield* sourceFile(input.cwd, input.file);
             const source = yield* io(fs.readFileString(file.absolute));
@@ -491,10 +480,7 @@ const make = Effect.gen(function* () {
               options: input.options,
               ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
               ...(input.summary === undefined ? {} : { summary: input.summary }),
-              boxes:
-                entry.sync === null
-                  ? []
-                  : forwardSearch(entry.sync, file.relative, range.startLine, range.endLine),
+              boxes: yield* proposalBoxes(entry, file.relative, range.startLine, range.endLine),
               status: "pending",
               createdAt,
             };

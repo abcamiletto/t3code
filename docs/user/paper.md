@@ -9,6 +9,10 @@ A project with a `.tex` file in its root shows a TeX icon. Open the right panel 
 (`brew install tectonic`) and rebuilds whenever a `.tex`, `.bib`, style or image file changes.
 Build output goes to `.t3-paper/`, which ignores itself in Git.
 
+PDF/source navigation uses the standard `synctex` command from TeX Live (MacTeX or BasicTeX on
+macOS) or MiKTeX. Install it on the machine that owns the project. PDF viewing and chat proposals
+remain available without it.
+
 ## Use your existing T3 Code machines
 
 On macOS, Paper picks up the account and saved machine connections from a standard T3 Code
