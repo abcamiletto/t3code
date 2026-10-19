@@ -59,6 +59,10 @@ environment servers, rather than copying their databases.
 After importing, Paper starts with its separate local environment disabled so new chats use the
 existing machines. It can be enabled again in Settings → Connections.
 
+The packaged renderer uses `t3code://app`, an origin accepted by the production sign-in service.
+Electron protocol handlers are scoped to each app. Paper keeps its separate browser profile,
+`t3paper://` public links, and OS URL registration.
+
 The build is ad-hoc signed and has no update feed, so it can never be replaced by an official
 release. electron-builder's ad-hoc signature does not survive packaging (`codesign --verify` reports
 missing resources), so re-sign the app with `codesign --force --deep --sign -` and repackage it with
