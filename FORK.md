@@ -43,9 +43,21 @@ Each is a few lines that register or call into fork-owned code:
 
 ## Building the app
 
+Enable the production T3 Connect configuration before building (these are public identifiers):
+If `.env` already exists, add the public values from `.env.example` instead of replacing it.
+
 ```sh
+cp .env.example .env
 node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 --output-dir release
 ```
+
+Packaged macOS builds import an existing T3 Code account and saved machine connections from
+`~/.t3/userdata` on startup. Credentials are unlocked through macOS Keychain and re-encrypted for
+Paper; existing Paper credentials and nonempty connection catalogs take precedence. The apps use
+separate Chromium profiles and server databases. Chats are shared by connecting to the same
+environment servers, rather than copying their databases.
+After importing, Paper starts with its separate local environment disabled so new chats use the
+existing machines. It can be enabled again in Settings → Connections.
 
 The build is ad-hoc signed and has no update feed, so it can never be replaced by an official
 release. electron-builder's ad-hoc signature does not survive packaging (`codesign --verify` reports

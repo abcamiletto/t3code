@@ -9,6 +9,16 @@ A project with a `.tex` file in its root shows a TeX icon. Open the right panel 
 (`brew install tectonic`) and rebuilds whenever a `.tex`, `.bib`, style or image file changes.
 Build output goes to `.t3-paper/`, which ignores itself in Git.
 
+## Use your existing T3 Code machines
+
+On macOS, Paper picks up the account and saved machine connections from a standard T3 Code
+installation. Allow Keychain access if macOS asks. Work in the same connected machine in both
+apps to see the same projects and chats. Paper starts with its own local environment disabled
+after importing; you can enable it in Settings → Connections if you need a separate local workspace.
+
+PDF builds and paper proposals require the T3 Paper server on the machine that owns the project.
+Connecting to a standard T3 Code server shares its chats but does not add the paper tools there.
+
 ## Comment on the paper
 
 Select text in the PDF and click the comment button. The comment is added to your message with
