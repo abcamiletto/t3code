@@ -24,6 +24,13 @@ import * as ElectronProtocol from "./ElectronProtocol.ts";
 const layerProtocol = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
 
 describe("ElectronProtocol", () => {
+  it("uses the supported cloud origin while keeping public Paper links separate", () => {
+    assert.equal(ElectronProtocol.getDesktopUrl(false), "t3code://app/");
+    assert.equal(ElectronProtocol.getDesktopLinkScheme(false), "t3paper");
+    assert.equal(ElectronProtocol.getDesktopUrl(true), "t3paper-dev://app/");
+    assert.equal(ElectronProtocol.getDesktopLinkScheme(true), "t3paper-dev");
+  });
+
   beforeEach(() => {
     handleMock.mockReset();
     netFetchMock.mockReset();
