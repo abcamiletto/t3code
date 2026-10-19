@@ -84,7 +84,7 @@ beforeEach(() => {
   getPassword
     .mockReset()
     .mockImplementation((service, account) =>
-      service === "t3code Safe Storage" && account === "t3code" ? secret : null,
+      service === "t3code Safe Storage" && account === "t3code Key" ? secret : null,
     );
 });
 
@@ -129,7 +129,7 @@ const setup = Effect.gen(function* () {
 });
 
 describe("existing T3 Code setup", () => {
-  it.effect("imports with the packaged key without prompting for unrelated older keys", () =>
+  it.effect("imports with account t3code Key without prompting for unrelated keys", () =>
     withHome(
       Effect.gen(function* () {
         const { fs, path, environment, source } = yield* setup;
@@ -140,7 +140,7 @@ describe("existing T3 Code setup", () => {
           }),
         );
         getPassword.mockImplementation((service, account) => {
-          if (service === "t3code Safe Storage" && account === "t3code") return secret;
+          if (service === "t3code Safe Storage" && account === "t3code Key") return secret;
           throw new Error(`User denied access to ${service}/${account}`);
         });
         yield* importSetup();
@@ -151,6 +151,33 @@ describe("existing T3 Code setup", () => {
           paperDecryption(tokens.__clerk_client_jwt!.slice(4)),
           "packaged-account-session",
         );
+        assert.deepEqual(getPassword.mock.calls, [["t3code Safe Storage", "t3code Key"]]);
+      }),
+    ),
+  );
+
+  it.effect("falls back to the bare packaged account when the Key account is absent", () =>
+    withHome(
+      Effect.gen(function* () {
+        const { fs, path, environment, source } = yield* setup;
+        yield* fs.writeFileString(
+          path.join(source, "clerk-tokens.json"),
+          encodeJson({
+            __clerk_client_jwt: `enc:${officialEncryption("bare-account-session")}`,
+          }),
+        );
+        getPassword.mockImplementation((service, account) =>
+          service === "t3code Safe Storage" && account === "t3code" ? secret : null,
+        );
+        yield* importSetup();
+        const tokens = decodeTokens(
+          yield* fs.readFileString(path.join(environment.stateDir, "clerk-tokens.json")),
+        );
+        assert.equal(paperDecryption(tokens.__clerk_client_jwt!.slice(4)), "bare-account-session");
+        assert.deepEqual(getPassword.mock.calls, [
+          ["t3code Safe Storage", "t3code Key"],
+          ["t3code Safe Storage", "t3code"],
+        ]);
       }),
     ),
   );
