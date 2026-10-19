@@ -53,6 +53,9 @@ cannot be located in the current PDF, the proposal stays available in the chat.
 The popup shows the original and one selected alternative side by side. Switch options at the top;
 long passages scroll inside each text pane. Red marks the original; green marks the proposed text.
 
+Inline math and displayed equations render in the preview. If a command is unsupported, the preview
+shows an error and its LaTeX source. The compiled paper PDF remains the reference for final typesetting.
+
 - Click **Apply** to update the `.tex` file and rebuild the PDF. The proposal is marked applied;
   nothing is added to your message draft and no extra agent turn is needed.
 - Type in **Reply** to send feedback. Clear instructions can be applied directly; feedback that
