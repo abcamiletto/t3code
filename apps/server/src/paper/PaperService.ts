@@ -454,8 +454,12 @@ const make = Effect.gen(function* () {
       withWorkspace(input.cwd, (entry) =>
         Effect.gen(function* () {
           if (entry.syncPdf === null) return yield* new PaperError({ reason: "sync_unavailable" });
-          const hit = yield* backwardSearch(runner, { ...input, pdf: entry.syncPdf });
-          const file = yield* sourceFile(input.cwd, hit.file);
+          const hit = yield* backwardSearch(runner, {
+            ...input,
+            cwd: entry.cwd,
+            pdf: entry.syncPdf,
+          });
+          const file = yield* sourceFile(entry.cwd, hit.file);
           const source = yield* io(fs.readFileString(file.absolute));
           return refineSource(file.relative, source, hit.line, input.text);
         }),
@@ -465,7 +469,7 @@ const make = Effect.gen(function* () {
         Effect.gen(function* () {
           if (entry.syncPdf === null) yield* awaitCurrentBuild(entry);
           return yield* Effect.gen(function* () {
-            const file = yield* sourceFile(input.cwd, input.file);
+            const file = yield* sourceFile(entry.cwd, input.file);
             const source = yield* io(fs.readFileString(file.absolute));
             const range = originalRange(source, input.original);
             if (range === undefined) return yield* new PaperError({ reason: "original_not_found" });
@@ -528,7 +532,7 @@ const make = Effect.gen(function* () {
             return yield* save({ ...proposal, status: "dismissed" });
           const option = proposal.options[input.resolution.optionIndex];
           if (option === undefined) return yield* new PaperError({ reason: "invalid_option" });
-          const file = yield* sourceFile(state.cwd, proposal.file);
+          const file = yield* sourceFile(entry.cwd, proposal.file);
           const source = yield* readOptional(file.absolute);
           const range = source === null ? undefined : originalRange(source, proposal.original);
           if (source === null || range === undefined) {

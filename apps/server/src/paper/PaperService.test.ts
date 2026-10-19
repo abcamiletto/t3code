@@ -285,6 +285,41 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
     }),
   );
 
+  it.effect("maps SyncTeX paths from the real build directory through a symlinked cwd", () =>
+    Effect.gen(function* () {
+      const { fs, path, cwd } = yield* temporaryPaper;
+      const linked = path.join(yield* fs.makeTempDirectoryScoped(), "paper");
+      yield* fs.symlink(cwd, linked);
+      const real = yield* fs.realPath(cwd);
+      const runner: ProcessRunner.ProcessRunner["Service"] = {
+        run: (request) =>
+          request.command === "synctex"
+            ? Effect.succeed({
+                ...result(),
+                stdout: `Output:main.pdf\nInput:${real}/main.tex\nLine:3\n`,
+              })
+            : fakeCompile(request).pipe(
+                Effect.provideService(FileSystem.FileSystem, fs),
+                Effect.provideService(Path.Path, path),
+              ),
+      };
+      yield* Effect.gen(function* () {
+        const paper = yield* PaperService.PaperService;
+        yield* paper.propose({ ...input, cwd: linked });
+        expect(yield* paper.syncFromPdf({ cwd: linked, page: 1, x: 20, y: 15 })).toMatchObject({
+          file: "main.tex",
+          startLine: 3,
+        });
+      }).pipe(
+        Effect.provide(
+          PaperService.layer.pipe(
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+          ),
+        ),
+      );
+    }),
+  );
+
   it.effect("detects root documents and prefers main.tex over other documentclass files", () =>
     Effect.gen(function* () {
       const { fs, path, cwd } = yield* temporaryPaper;
