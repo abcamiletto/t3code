@@ -41,8 +41,9 @@ so short instructions such as "delete this part" retain their target.
 
 ## Pick a rewrite
 
-When you comment on wording, the agent proposes two to four alternatives instead of editing the
-file. They are highlighted on the PDF and shown in the chat.
+The agent applies clear, specific requests directly, such as deleting a phrase or fixing a typo.
+For rewrites that need a choice, or when you ask for a preview, it proposes one to four options.
+Proposals are highlighted on the PDF and shown in the chat.
 
 Click a highlighted passage or its **Review change** button to open the alternatives. You can still
 drag to select text and comment on it. Use **View in PDF** in the chat to jump to the passage and
@@ -52,9 +53,10 @@ cannot be located in the current PDF, the proposal stays available in the chat.
 The popup shows the original and one selected alternative side by side. Switch options at the top;
 long passages scroll inside each text pane. Red marks the original; green marks the proposed text.
 
-- Click an option and **Apply** it. The `.tex` file is updated and the PDF rebuilds. Your next
-  message tells the agent which option you chose.
-- Type in **Reply** to send feedback; the agent answers with revised options.
+- Click **Apply** to update the `.tex` file and rebuild the PDF. The proposal is marked applied;
+  nothing is added to your message draft and no extra agent turn is needed.
+- Type in **Reply** to send feedback. Clear instructions can be applied directly; feedback that
+  needs a choice leads to revised options.
 - Dismiss a proposal you don't want.
 
 A proposal goes stale if its original text changes before you apply it.

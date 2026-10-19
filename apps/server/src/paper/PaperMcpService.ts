@@ -116,7 +116,7 @@ const make = Effect.gen(function* () {
         return {
           paperProposal: { cwd: workspace.cwd, proposalId: proposal.id },
           message:
-            "Proposed alternatives in the Paper panel. The user can pick one to apply it or reply with feedback in chat.",
+            "Proposed a change in the Paper panel. The user can apply it or reply with feedback in chat.",
         };
       }),
   });

@@ -16,9 +16,10 @@ import * as PaperMcpService from "./PaperMcpService.ts";
 import * as PaperService from "./PaperService.ts";
 
 const encodeStatus = Schema.encodeEffect(PaperToolkit.tools.paper_status.successSchema);
+const decodeProposal = Schema.decodeEffect(PaperToolkit.tools.paper_propose_edits.parametersSchema);
 
 it.effect(
-  "status returns the last five resolutions, newest first, independently of chat chips",
+  "accepts single-option proposals and returns the last five resolutions without chat chips",
   () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -73,11 +74,17 @@ it.effect(
         const proposals = yield* Effect.forEach(
           Array.from({ length: 8 }, (_, index) => index),
           (index) =>
-            mcp.propose(threadId, {
-              file: "main.tex",
-              original: `Sentence ${index}.`,
-              options: [{ latex: "A clearer sentence." }, { latex: "A shorter sentence." }],
-              ...(index === 0 ? { summary: "Tighten this sentence" } : {}),
+            Effect.gen(function* () {
+              const input = yield* decodeProposal({
+                file: "main.tex",
+                original: `Sentence ${index}.`,
+                options:
+                  index === 0
+                    ? [{ latex: "A clearer sentence." }]
+                    : [{ latex: "A clearer sentence." }, { latex: "A shorter sentence." }],
+                ...(index === 0 ? { summary: "Tighten this sentence" } : {}),
+              });
+              return yield* mcp.propose(threadId, input);
             }),
         );
         for (const { paperProposal } of proposals.slice(1, 7).toReversed()) {
@@ -90,8 +97,11 @@ it.effect(
         yield* paper.resolve({
           cwd,
           proposalId: proposals[0]!.paperProposal.proposalId,
-          resolution: { type: "apply", optionIndex: 1 },
+          resolution: { type: "apply", optionIndex: 0 },
         });
+        expect(yield* fs.readFileString(path.join(cwd, "main.tex"))).toContain(
+          "A clearer sentence.",
+        );
         const otherThread = ThreadId.make("other-paper-thread");
         const otherProposal = yield* mcp.propose(otherThread, {
           file: "main.tex",
@@ -127,7 +137,7 @@ it.effect(
             file: "main.tex",
             summary: "Tighten this sentence",
             status: "applied",
-            appliedOptionIndex: 1,
+            appliedOptionIndex: 0,
           },
           ...proposals.slice(1, 5).map(({ paperProposal }) => ({
             id: paperProposal.proposalId,

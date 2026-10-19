@@ -6,10 +6,9 @@ import type { ReviewCommentContext } from "~/reviewCommentContext";
 // so each title carries the instruction it needs.
 export const PAPER_SECTIONS = {
   comment:
-    "Paper comment: target the quoted PDF selection; source lines are context. Answer with paper_propose_edits (2-4 options), do not edit the file",
+    "Paper comment: quoted PDF text is the target; source lines are context. Apply clear, specific requests directly; use paper_propose_edits for choices or requested previews. Check paper_status after edits",
   feedback:
-    "Paper proposal feedback: answer with revised paper_propose_edits options, do not edit the file",
-  applied: "Paper edit applied by the user: no action needed",
+    "Paper proposal feedback: apply clear, specific requests directly; propose options only for choices or requested previews. Read current source and paper_status; applied options are already saved",
 } as const;
 
 export function paperReviewComment(
