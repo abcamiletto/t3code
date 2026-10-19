@@ -70,5 +70,5 @@ missing resources), so re-sign the app with `codesign --force --deep --sign -` a
 `hdiutil create` before publishing the DMG as a GitHub release on the fork.
 
 Upstream desktop tests that assert the official app's scheme, name or profile paths are updated
-to T3 Paper's values when they arrive in a rebase. The Linux theme-icon tests assume a
+to T3 Paper's values when merging upstream changes. The Linux theme-icon tests assume a
 case-sensitive filesystem and fail on macOS regardless of the fork.
