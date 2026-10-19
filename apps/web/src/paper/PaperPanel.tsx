@@ -161,8 +161,11 @@ export default function PaperPanel(context: PanelContext) {
     setError(null);
     return true;
   };
-  const state = query.data;
-  if (!state) return <PaperEmpty label={query.error ?? "Paper"} />;
+  if (!query.data) return <PaperEmpty label={query.error ?? "Paper"} />;
+  const state = {
+    ...query.data,
+    proposals: query.data.proposals.filter((proposal) => proposal.threadId === threadRef.threadId),
+  };
   const missing = state.build.diagnostics.some((entry) => entry.code === "compiler_missing");
   return (
     <div className="flex h-full min-h-0 flex-col">

@@ -92,6 +92,29 @@ it.effect(
           proposalId: proposals[0]!.paperProposal.proposalId,
           resolution: { type: "apply", optionIndex: 1 },
         });
+        const otherThread = ThreadId.make("other-paper-thread");
+        const otherProposal = yield* mcp.propose(otherThread, {
+          file: "main.tex",
+          original: "Sentence 7.",
+          options: [{ latex: "Another wording." }, { latex: "A different wording." }],
+        });
+        const otherResolution = yield* paper.propose({
+          cwd,
+          file: "main.tex",
+          original: "Sentence 6.",
+          options: [{ latex: "Another wording." }, { latex: "A different wording." }],
+          threadId: otherThread,
+        });
+        yield* paper.resolve({
+          cwd,
+          proposalId: otherResolution.id,
+          resolution: { type: "dismiss" },
+        });
+        const otherStatus = yield* mcp.status(otherThread);
+        expect(otherStatus.proposals.map(({ id }) => id)).toEqual([
+          otherProposal.paperProposal.proposalId,
+        ]);
+        expect(otherStatus.resolvedProposals.map(({ id }) => id)).toEqual([otherResolution.id]);
         const status = yield* mcp.status(threadId);
         expect(status.buildStatus).toBe("failed");
         expect(status.diagnostics[0]).toMatchObject({ file: "main.tex", line: 2 });
