@@ -105,6 +105,46 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
     await act(() => userEvent.click(page.getByRole("button", { name: "Option B", exact: true })));
     expect(proposedPane.textContent).toBe("Limitations and next steps.");
     await act(() => userEvent.keyboard("{Escape}"));
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-slot="popover-popup"]')).toBeNull(),
+    );
+    const heading = container.querySelector('[data-paper-page="2"] [data-paper-text-layer] span')!;
+    await act(() => {
+      const range = document.createRange();
+      range.selectNodeContents(heading);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      const bounds = heading.getBoundingClientRect();
+      heading.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+      heading.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          clientX: bounds.x + bounds.width / 2,
+          clientY: bounds.y + bounds.height / 2,
+        }),
+      );
+    });
+    expect(document.querySelector('[data-slot="popover-popup"]')).toBeNull();
+    await expect.element(page.getByRole("button", { name: "Comment", exact: true })).toBeVisible();
+    window.getSelection()!.removeAllRanges();
+    await act(() => userEvent.click(page.elementLocator(heading)));
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-slot="popover-popup"]')?.textContent).toContain(
+        "Choose a rewrite",
+      );
+    });
+    await act(() => userEvent.keyboard("{Escape}"));
+    await act(() =>
+      userEvent.click(
+        page.getByRole("button", { name: "Review proposed change: Choose a rewrite" }),
+      ),
+    );
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-slot="popover-popup"]')?.textContent).toContain(
+        "Choose a rewrite",
+      );
+    });
+    await act(() => userEvent.keyboard("{Escape}"));
     await reveal(2);
     await vi.waitFor(() => {
       expect(document.querySelector('[data-slot="popover-popup"]')?.textContent).toContain(

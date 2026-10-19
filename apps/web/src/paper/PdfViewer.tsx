@@ -49,6 +49,13 @@ function DocumentLayer({
   context: PaperViewerContext;
 }) {
   const pages = visiblePages(layout, scrollTop, height);
+  const [review, setReview] = useState({
+    request: context.reveal,
+    proposalId: context.reveal?.proposalId,
+    page: undefined as number | undefined,
+  });
+  if (review.request !== context.reveal)
+    setReview({ request: context.reveal, proposalId: context.reveal?.proposalId, page: undefined });
   const readyPages = useRef(new Set<string>());
   const ready = (page: number, rendered: boolean) => {
     const key = `${page}:${layout[page - 1]!.scale}`;
@@ -78,6 +85,32 @@ function DocumentLayer({
             data-paper-page={hidden ? undefined : index + 1}
             className="absolute left-1/2 -translate-x-1/2 bg-white shadow-sm"
             style={{ top: page.top, width: page.width, height: page.height }}
+            onClick={(event) => {
+              if (
+                hidden ||
+                event.button !== 0 ||
+                !(event.target instanceof Element) ||
+                !event.target.closest("[data-paper-text-layer]") ||
+                window.getSelection()?.isCollapsed === false
+              )
+                return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              const x = (event.clientX - bounds.left) / page.scale;
+              const y = (event.clientY - bounds.top) / page.scale;
+              const proposal = context.proposals.find(
+                (proposal) =>
+                  (proposal.status === "pending" || proposal.id === context.reveal?.proposalId) &&
+                  proposal.boxes.some(
+                    (box) =>
+                      box.page === index + 1 &&
+                      x >= box.x &&
+                      x <= box.x + box.width &&
+                      y >= box.y &&
+                      y <= box.y + box.height,
+                  ),
+              );
+              if (proposal) setReview({ ...review, proposalId: proposal.id, page: index + 1 });
+            }}
           >
             <PdfPage
               pdf={document.pdf}
@@ -111,14 +144,21 @@ function DocumentLayer({
                   )
                   .map((proposal) => (
                     <ProposalOverlay
-                      key={`${proposal.id}:${context.reveal?.proposalId === proposal.id ? context.reveal.requestId : 0}`}
+                      key={proposal.id}
                       proposal={proposal}
                       page={index + 1}
                       scale={page.scale}
                       {...context}
-                      revealed={
-                        context.reveal?.proposalId === proposal.id &&
-                        proposal.boxes[0]?.page === index + 1
+                      open={
+                        review.proposalId === proposal.id &&
+                        (review.page ?? proposal.boxes[0]?.page) === index + 1
+                      }
+                      onOpenChange={(open) =>
+                        setReview({
+                          ...review,
+                          proposalId: open ? proposal.id : undefined,
+                          page: index + 1,
+                        })
                       }
                     />
                   ))}

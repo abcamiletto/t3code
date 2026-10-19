@@ -33,8 +33,9 @@ so short instructions such as "delete this part" retain their target.
 When you comment on wording, the agent proposes two to four alternatives instead of editing the
 file. They are highlighted on the PDF and shown in the chat.
 
-Use **View in PDF** on a proposal to jump to the passage, highlight it, and open the alternatives
-beside it. New proposals open there automatically while you are working in Paper. If the passage
+Click a highlighted passage or its **Review change** button to open the alternatives. You can still
+drag to select text and comment on it. Use **View in PDF** in the chat to jump to the passage and
+open its popup. New proposals open there automatically while you are working in Paper. If the passage
 cannot be located in the current PDF, the proposal stays available in the chat.
 
 The popup shows the original and one selected alternative side by side. Switch options at the top;
