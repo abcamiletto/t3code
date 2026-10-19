@@ -30,6 +30,9 @@ function displayNodes(content: readonly Ast.Node[]): DisplayNode[] {
   for (const node of content) {
     switch (node.type) {
       case "string":
+        if (node.content.includes("$")) {
+          throw new Error("Unmatched math delimiter. Include both delimiters in the proposal.");
+        }
         text(node.content.replaceAll("~", "\u00a0"));
         break;
       case "whitespace":
@@ -69,6 +72,11 @@ function displayNodes(content: readonly Ast.Node[]): DisplayNode[] {
         break;
       case "macro": {
         const name = node.content;
+        if (["begin", "end", "(", ")", "[", "]"].includes(name)) {
+          throw new Error(
+            "Incomplete LaTeX. Include matching math delimiters or begin/end tags in the proposal.",
+          );
+        }
         const argument = node.args?.findLast((arg) => arg.openMark === "{");
         if (/^cite/i.test(name) || /^(?:eqref|ref|cref|Cref|autoref|pageref)$/.test(name)) {
           nodes.push({ kind: "muted", text: /^cite/i.test(name) ? "[cite]" : "[ref]" });
