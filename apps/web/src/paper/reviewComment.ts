@@ -5,7 +5,7 @@ import type { ReviewCommentContext } from "~/reviewCommentContext";
 // The section title reaches the agent verbatim, and agents load MCP tool descriptions lazily,
 // so each title carries the instruction it needs.
 const REVIEW_RULES =
-  "Edit directly only for user-specified exact replacements, explicit deletions, or mechanical fixes. Choosing wording, restructuring, or interpreting feedback needs paper_propose_edits and user Apply; one option is enough. Put returned markdown in its own paragraph. Keep prose brief, preserve complete math boundaries, and check paper_status after edits";
+  "Make closely specified edits directly: delete the marked passage, replace a term, or follow wording the user sketches; minor polishing is fine. For generic feedback ('LLM slop', 'awkward', 'make this clearer') or substantial editorial choices, use paper_propose_edits and wait for Apply; one option is enough. Put returned markdown in its own paragraph. Keep prose brief, preserve complete math boundaries, and check paper_status after edits";
 
 export const PAPER_SECTIONS = {
   comment: `Paper comment: quoted PDF text is the target; source lines are context. ${REVIEW_RULES}`,
