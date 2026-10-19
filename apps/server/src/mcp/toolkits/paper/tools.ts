@@ -20,7 +20,7 @@ const dependencies = [
 
 const PaperStatusTool = Tool.make("paper_status", {
   description:
-    "Check the calling thread's LaTeX paper against files on disk, building and waiting when needed. Returns the main file, build status, diagnostics (errors first, at most 20), last good PDF path, pending proposals, and the five most recent resolved proposals, including applied choices and dismissals even after their chat chips are deleted.",
+    "Check the calling thread's LaTeX paper against files on disk, building and waiting when needed. Returns the main file, build status, diagnostics (errors first, at most 20), last good PDF path, pending proposals, and the five most recent resolved proposals. A failed build may retain an older PDF: do not claim the latest changes are visible. Font substitutions are errors because requested styles may be lost. Check diagnostics before claiming a formatting change rendered successfully.",
   parameters: Tool.EmptyParams,
   success: Schema.Struct({
     mainFile: Schema.NullOr(Schema.String),

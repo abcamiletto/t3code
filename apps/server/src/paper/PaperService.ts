@@ -57,7 +57,8 @@ export class PaperService extends Context.Service<
 const StoredProposals = Schema.fromJsonString(Schema.Array(PaperProposal));
 const decodeProposals = Schema.decodeEffect(StoredProposals);
 const encodeProposals = Schema.encodeEffect(StoredProposals);
-const watchedExtension = /\.(?:tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|svg|webp|gif|tiff?)$/i;
+const watchedExtension =
+  /(?:\.(?:tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|svg|webp|gif|tiff?)|(?:^|[/\\])\.?latexmkrc)$/i;
 const ignoredDirectory = /(?:^|[/\\])(?:\.t3-paper|\.git|node_modules)(?:[/\\]|$)/;
 
 const make = Effect.gen(function* () {
@@ -285,14 +286,15 @@ const make = Effect.gen(function* () {
       yield* io(fs.makeDirectory(staging));
       const result = yield* runner
         .run({
-          command: "tectonic",
+          command: "latexmk",
           args: [
-            "-X",
-            "compile",
-            "--synctex",
-            "--keep-logs",
-            "--outdir",
-            staging,
+            // Keep a configured engine; default to pdfLaTeX rather than changing the document's fonts.
+            "-e",
+            "$pdf_mode ||= 1;",
+            "-synctex=1",
+            "-interaction=nonstopmode",
+            "-file-line-error",
+            `-outdir=${staging}`,
             detected.mainFile,
           ],
           cwd,
@@ -317,13 +319,20 @@ const make = Effect.gen(function* () {
       const stem = path.basename(detected.mainFile, ".tex");
       const log = yield* readOptional(path.join(staging, `${stem}.log`));
       if (log !== null) yield* io(fs.writeFileString(path.join(output, `${stem}.log`), log));
-      const diagnostics = parseDiagnostics(`${result.stdout}\n${result.stderr}\n${log ?? ""}`, cwd);
+      // latexmk's earlier passes can warn about references that its final pass resolves.
+      const diagnosticOutput =
+        result.code === 0 && log !== null
+          ? log
+          : `${result.stdout}\n${result.stderr}\n${log ?? ""}`;
+      const diagnostics = parseDiagnostics(diagnosticOutput, cwd);
       if (result.code !== 0 && !diagnostics.some((diagnostic) => diagnostic.severity === "error"))
         diagnostics.push({
           severity: "error",
-          message: "Tectonic could not compile the document.",
+          message: "LaTeX could not compile the document.",
         });
-      if (result.code === 0) {
+      const succeeded =
+        result.code === 0 && !diagnostics.some((entry) => entry.severity === "error");
+      if (succeeded) {
         // Overwrite in place: signed asset URLs pin the file's inode, so a rename would 404 open viewers.
         const pdf = yield* io(fs.readFile(path.join(staging, `${stem}.pdf`)));
         yield* io(fs.writeFile(path.join(output, `${stem}.pdf`), pdf));
@@ -344,9 +353,9 @@ const make = Effect.gen(function* () {
           ...state,
           build: {
             ...state.build,
-            status: result.code === 0 ? ("succeeded" as const) : ("failed" as const),
-            revision: state.build.revision + (result.code === 0 ? 1 : 0),
-            pdfPath: result.code === 0 ? `.t3-paper/build/${stem}.pdf` : state.build.pdfPath,
+            status: succeeded ? ("succeeded" as const) : ("failed" as const),
+            revision: state.build.revision + (succeeded ? 1 : 0),
+            pdfPath: succeeded ? `.t3-paper/build/${stem}.pdf` : state.build.pdfPath,
             diagnostics,
             finishedAt,
             durationMs: finished - started,

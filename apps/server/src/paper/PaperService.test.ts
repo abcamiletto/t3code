@@ -57,7 +57,7 @@ const layerNoCompiler = Layer.succeed(ProcessRunner.ProcessRunner, {
   run: () =>
     Effect.fail(
       new ProcessRunner.ProcessSpawnError({
-        command: "tectonic",
+        command: "latexmk",
         argumentCount: 7,
         cause: new Error("No compiler"),
       }),
@@ -75,7 +75,7 @@ const fakeCompile = (request: ProcessRunner.ProcessRunInput) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const output = request.args[request.args.indexOf("--outdir") + 1]!;
+    const output = request.args.find((arg) => arg.startsWith("-outdir="))!.slice("-outdir=".length);
     yield* fs.writeFileString(path.join(output, "main.pdf"), "%PDF-test");
     yield* fs.writeFile(
       path.join(output, "main.synctex.gz"),
@@ -85,6 +85,62 @@ const fakeCompile = (request: ProcessRunner.ProcessRunInput) =>
   }).pipe(Effect.orDie);
 
 it.layer(NodeServices.layer)("PaperService", (it) => {
+  it.effect(
+    "rejects font substitutions even when the compiler exits successfully and keeps the good PDF",
+    () =>
+      Effect.gen(function* () {
+        const { fs, path, cwd } = yield* temporaryPaper;
+        let builds = 0;
+        const runner: ProcessRunner.ProcessRunner["Service"] = {
+          run: (request) =>
+            Effect.gen(function* () {
+              builds++;
+              const compiled = yield* fakeCompile(request);
+              const output = request.args
+                .find((arg) => arg.startsWith("-outdir="))!
+                .slice("-outdir=".length);
+              if (builds === 1) {
+                yield* fs.writeFileString(
+                  path.join(output, "main.log"),
+                  "Final pass: fonts loaded correctly.",
+                );
+                return {
+                  ...compiled,
+                  stdout:
+                    "LaTeX Font Warning: Font shape `TU/ptm/m/it' undefined in an earlier pass.",
+                };
+              }
+              yield* fs.writeFileString(path.join(output, "main.pdf"), "%PDF-lost-italics");
+              yield* fs.writeFileString(
+                path.join(output, "main.log"),
+                "LaTeX Font Warning: Font shape `TU/ptm/m/it' undefined\n(Font) using `TU/ptm/m/n' instead on input line 3.\n",
+              );
+              return compiled;
+            }).pipe(
+              Effect.provideService(FileSystem.FileSystem, fs),
+              Effect.provideService(Path.Path, path),
+              Effect.orDie,
+            ),
+        };
+        yield* Effect.gen(function* () {
+          const paper = yield* PaperService.PaperService;
+          expect((yield* paper.currentStatus(cwd)).build.status).toBe("succeeded");
+          const failed = yield* paper.currentStatus(cwd);
+          expect(failed.build.status).toBe("failed");
+          expect(failed.build.diagnostics[0]).toMatchObject({
+            severity: "error",
+            message: expect.stringContaining("Font substitution"),
+          });
+          expect(yield* fs.readFileString(path.join(cwd, failed.build.pdfPath!))).toBe("%PDF-test");
+        }).pipe(
+          Effect.provide(
+            PaperService.layer.pipe(
+              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
+            ),
+          ),
+        );
+      }),
+  );
   it.effect("builds unwatched files again so current status reflects edits on disk", () =>
     Effect.gen(function* () {
       const { fs, path, cwd } = yield* temporaryPaper;
@@ -838,7 +894,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         run: () =>
           Effect.fail(
             new ProcessRunner.ProcessSpawnError({
-              command: "tectonic",
+              command: "latexmk",
               argumentCount: 7,
               cause: PlatformError.systemError({
                 _tag: "NotFound",
@@ -866,7 +922,8 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       expect(state.build.diagnostics).toEqual([
         {
           severity: "error",
-          message: "Tectonic is not installed. Install it with `brew install tectonic`.",
+          message:
+            "latexmk is not installed. Install TeX Live (MacTeX on macOS) or MiKTeX with latexmk on the machine that owns this project.",
           code: "compiler_missing",
         },
       ]);

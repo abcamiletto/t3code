@@ -1,6 +1,26 @@
 import { expect, it } from "vite-plus/test";
 import { parseDiagnostics } from "./diagnostics.ts";
 
+it("reports lost font styles as errors, including the actual substituted font", () => {
+  expect(
+    parseDiagnostics(
+      "LaTeX Font Warning: Font shape `TU/ptm/m/it' undefined\n(Font)              using `TU/ptm/m/n' instead on input line 68.\n\nLaTeX Font Warning: Some font shapes were not available, defaults substituted.\n",
+      "/paper",
+    ),
+  ).toEqual([
+    {
+      severity: "error",
+      message:
+        "Font substitution: Font shape `TU/ptm/m/it' undefined using `TU/ptm/m/n' instead on input line 68.",
+      line: 68,
+    },
+    {
+      severity: "error",
+      message: "Font substitution: Some font shapes were not available, defaults substituted.",
+    },
+  ]);
+});
+
 it("extracts Tectonic file locations and severity without build chatter", () => {
   expect(
     parseDiagnostics(

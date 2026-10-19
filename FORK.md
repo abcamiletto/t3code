@@ -18,7 +18,7 @@ Upstream conflicts usually land in the small hooks listed below.
 ## Fork-owned code
 
 - `packages/contracts/src/paper.ts`: wire types for paper state, proposals and SyncTeX lookups.
-- `apps/server/src/paper/`: Tectonic builds, file watching, SyncTeX, proposals.
+- `apps/server/src/paper/`: latexmk builds, file watching, SyncTeX, proposals.
 - `apps/server/src/mcp/toolkits/paper/`: the `paper_status` and `paper_propose_edits` agent tools.
 - `apps/web/src/paper/` and `packages/client-runtime/src/paper/`: the Paper panel and its chat card.
 - `packages/shared/src/forkIdentity.ts`: app name, bundle id, URL scheme, T3 home (`~/.t3-paper`) and
