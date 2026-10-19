@@ -1,11 +1,11 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { PaperProposal, ScopedThreadRef } from "@t3tools/contracts";
 import { formatEnvironmentQueryError } from "~/state/query";
-import { Check, CircleCheck, CircleX, Clock3, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Check, CircleCheck, CircleX, Clock3, LocateFixed, X } from "lucide-react";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { Toggle, ToggleGroup } from "~/components/ui/toggle-group";
 import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
-import { cn } from "~/lib/utils";
 import { dispatchSnapShotComposerFocus } from "~/lib/desktopSnapShot";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { TypesetText } from "./TypesetText";
@@ -13,6 +13,7 @@ import { PaperIconButton } from "./PaperIconButton";
 import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import { paperEnvironment } from "./state";
 import { PaperReplyInput } from "./PaperReplyInput";
+import { openPaperPanel } from "./openPaperPanel";
 
 export function ProposalCard({
   proposal,
@@ -20,16 +21,18 @@ export function ProposalCard({
   cwd,
   composerDraftTarget = threadRef,
   compact = false,
-  actions,
+  showLocation = true,
+  onClose,
 }: {
   proposal: PaperProposal;
   threadRef: ScopedThreadRef;
   cwd: string;
   composerDraftTarget?: ScopedThreadRef | DraftId;
   compact?: boolean;
-  actions?: ReactNode;
+  showLocation?: boolean;
+  onClose?: () => void;
 }) {
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(proposal.appliedOptionIndex ?? 0);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const [resolved, setResolved] = useState<PaperProposal | null>(null);
@@ -41,11 +44,23 @@ export function ProposalCard({
   );
   const addComment = useComposerDraftStore((state) => state.addReviewComment);
   const current = resolved ?? proposal;
+  const choice = current.status === "applied" ? (current.appliedOptionIndex ?? selected) : selected;
+  const option = proposal.options[choice]!;
+  const locationAction = showLocation && (
+    <Button
+      size="micro"
+      variant="ghost"
+      onClick={() => openPaperPanel(threadRef, { proposalId: proposal.id })}
+    >
+      <LocateFixed />
+      View in PDF
+    </Button>
+  );
 
   const submit = async (
     resolution: { type: "apply"; optionIndex: number } | { type: "dismiss" },
   ) => {
-    if (busy) return;
+    if (busy || current.status !== "pending") return;
     setBusy(true);
     setError(null);
     const result = await resolve({
@@ -67,6 +82,7 @@ export function ProposalCard({
           `Applied option ${String.fromCharCode(65 + resolution.optionIndex)}`,
           proposal.options[resolution.optionIndex]!.latex,
         ),
+        { insertAtCaret: false },
       );
     }
   };
@@ -86,12 +102,13 @@ export function ProposalCard({
           ),
         ].join("\n\n"),
       ),
+      { insertAtCaret: false },
     );
     setFeedback("");
     dispatchSnapShotComposerFocus();
   };
 
-  if (current.status !== "pending") {
+  if (current.status !== "pending" && compact) {
     const Icon =
       current.status === "applied" ? CircleCheck : current.status === "stale" ? Clock3 : CircleX;
     return (
@@ -99,7 +116,7 @@ export function ProposalCard({
         <Icon className="size-3.5" />
         <span className="truncate">{current.summary ?? "Proposal"}</span>
         <span className="ml-auto capitalize">{current.status}</span>
-        {actions}
+        {locationAction}
       </div>
     );
   }
@@ -112,6 +129,7 @@ export function ProposalCard({
         if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement)
           return;
         if (event.metaKey || event.ctrlKey || event.altKey || event.nativeEvent.isComposing) return;
+        if (current.status !== "pending") return;
         const index = Number(event.key) - 1;
         if (/^[1-4]$/.test(event.key) && index < proposal.options.length) {
           event.preventDefault();
@@ -128,14 +146,15 @@ export function ProposalCard({
         <span className="min-w-0 flex-1 truncate font-medium">
           {proposal.summary ?? "Proposal"}
         </span>
-        {actions}
-        <PaperIconButton
-          label="Dismiss"
-          disabled={!canResolve || busy}
-          onClick={() => void submit({ type: "dismiss" })}
-        >
-          <X />
-        </PaperIconButton>
+        {current.status !== "pending" && (
+          <span className="text-xs capitalize text-muted-foreground">{current.status}</span>
+        )}
+        {locationAction}
+        {onClose && (
+          <PaperIconButton label="Close proposal" onClick={onClose}>
+            <X />
+          </PaperIconButton>
+        )}
       </div>
       {compact && (
         <div>
@@ -149,57 +168,59 @@ export function ProposalCard({
           </Button>
         </div>
       )}
-      {originalOpen && (
-        <div className="text-xs text-muted-foreground line-through">
-          <TypesetText latex={proposal.original} />
-        </div>
-      )}
-      <div role="radiogroup" aria-label="Options" className="flex flex-col gap-1">
-        {proposal.options.map((option, index) => (
-          <div
-            key={option.latex}
-            data-selected={selected === index}
-            className={cn(
-              "flex gap-2 rounded-md border border-transparent data-[selected=true]:border-border data-[selected=true]:bg-muted/40",
-              compact ? "p-1.5" : "p-2",
-            )}
-          >
-            <button
-              type="button"
-              role="radio"
-              tabIndex={selected === index ? 0 : -1}
-              aria-checked={selected === index}
-              className="flex min-w-0 flex-1 cursor-pointer gap-2 text-left focus-visible:outline-2 focus-visible:outline-ring"
-              onClick={() => setSelected(index)}
-              onDoubleClick={() => {
-                if (canResolve) void submit({ type: "apply", optionIndex: index });
-              }}
-            >
-              <span className="text-xs text-muted-foreground">
-                {String.fromCharCode(65 + index)}
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <TypesetText latex={option.latex} />
-                {option.note && (
-                  <span className="text-xs text-muted-foreground">{option.note}</span>
-                )}
-              </span>
-            </button>
-            {selected === index && (
-              <span className="shrink-0 self-end">
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  disabled={!canResolve || busy}
-                  onClick={() => void submit({ type: "apply", optionIndex: index })}
-                >
-                  <Check />
-                  Apply
-                </Button>
-              </span>
-            )}
-          </div>
+      <ToggleGroup
+        aria-label="Options"
+        disabled={current.status !== "pending"}
+        value={[String(choice)]}
+        onValueChange={([value]) => {
+          if (value !== undefined) setSelected(Number(value));
+        }}
+      >
+        {proposal.options.map((alternative, index) => (
+          <Toggle key={alternative.latex} value={String(index)}>
+            Option {String.fromCharCode(65 + index)}
+          </Toggle>
         ))}
+      </ToggleGroup>
+      <div
+        className={compact ? "flex min-h-0 flex-col gap-3" : "grid min-h-0 gap-3 sm:grid-cols-2"}
+      >
+        {originalOpen && (
+          <section className="flex min-w-0 flex-col gap-2" aria-label="Original text">
+            <h3 className="text-xs font-medium text-destructive">Before</h3>
+            <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-destructive/25 bg-destructive/5 p-3 text-base leading-relaxed wrap-anywhere">
+              <TypesetText latex={proposal.original} />
+            </div>
+          </section>
+        )}
+        <section className="flex min-w-0 flex-col gap-2" aria-label="Proposed text">
+          <h3 className="text-xs font-medium text-success-foreground">
+            After · Option {String.fromCharCode(65 + choice)}
+          </h3>
+          <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-base leading-relaxed wrap-anywhere">
+            <TypesetText latex={option.latex} />
+          </div>
+          {option.note && <p className="text-xs text-muted-foreground">{option.note}</p>}
+        </section>
+      </div>
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          size="xs"
+          variant="ghost"
+          disabled={!canResolve || busy || current.status !== "pending"}
+          onClick={() => void submit({ type: "dismiss" })}
+        >
+          Dismiss
+        </Button>
+        <Button
+          size="xs"
+          variant="secondary"
+          disabled={!canResolve || busy || current.status !== "pending"}
+          onClick={() => void submit({ type: "apply", optionIndex: selected })}
+        >
+          <Check />
+          Apply option {String.fromCharCode(65 + choice)}
+        </Button>
       </div>
       <PaperReplyInput value={feedback} onChange={setFeedback} onSubmit={reply} />
       {feedback.trim() && (

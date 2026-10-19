@@ -27,6 +27,22 @@ it("refines normalized selected text to the tightest source range near a SyncTeX
     endLine: 5,
     source: "Closing.",
   });
+  const rendered = "A \\textbf{refinement} uses observations~\\cite{one,two}.";
+  expect(
+    refineSource(
+      "main.tex",
+      `${rendered}\n${"\n".repeat(35)}Closing.`,
+      38,
+      "A reﬁne-\nment uses observations [1, 2].",
+    ),
+  ).toMatchObject({ startLine: 1, endLine: 1, source: rendered });
+  expect(
+    refineSource("main.tex", "Context.\nA symbolic formula.\n\nNext paragraph.", 3, "θ"),
+  ).toMatchObject({
+    startLine: 1,
+    endLine: 2,
+    source: "Context.\nA symbolic formula.",
+  });
 });
 
 it("does not treat selected PDF percent signs as LaTeX comments", () => {

@@ -3,7 +3,7 @@ import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import type { PaperState, ScopedThreadRef } from "@t3tools/contracts";
 import { resolveWorkspaceFilePath } from "@t3tools/shared/path";
 import { ScrollText, Wrench } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useAssetUrlState } from "~/assets/assetUrls";
 import { workspaceAssetResource } from "~/components/files/filePreviewMode";
 import { Button } from "~/components/ui/button";
@@ -12,7 +12,6 @@ import { useRightPanelStore } from "~/rightPanelStore";
 import { formatEnvironmentQueryError, useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { PaperToolbar } from "./PaperToolbar";
-import { ProposalCard } from "./ProposalCard";
 import { usePaperReveal } from "./openPaperPanel";
 import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import type { PaperSelection } from "./selection";
@@ -83,40 +82,6 @@ function PaperEmpty({ label, compiler = false }: { label: string; compiler?: boo
   );
 }
 
-function ProposalList({
-  state,
-  reveal,
-  ...context
-}: PanelContext & {
-  state: PaperState;
-  reveal: { proposalId: string; requestId: number } | undefined;
-}) {
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (reveal)
-      root.current
-        ?.querySelector<HTMLElement>(`[data-proposal-id="${CSS.escape(reveal.proposalId)}"]`)
-        ?.scrollIntoView({ block: "nearest" });
-  }, [reveal]);
-  const proposals = state.proposals.filter(
-    (proposal) => proposal.boxes.length === 0 || proposal.status !== "pending",
-  );
-  if (proposals.length === 0) return null;
-  return (
-    <div ref={root} className="max-h-64 shrink-0 overflow-y-auto border-t border-border">
-      {proposals.map((proposal) => (
-        <div
-          key={proposal.id}
-          data-proposal-id={proposal.id}
-          className="border-b border-border p-3 last:border-b-0"
-        >
-          <ProposalCard {...context} proposal={proposal} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function PaperPanel(context: PanelContext) {
   const { threadRef, cwd, composerDraftTarget } = context;
   const environmentId = threadRef.environmentId;
@@ -156,7 +121,13 @@ export default function PaperPanel(context: PanelContext) {
     const range = result.value;
     addComment(
       composerDraftTarget,
-      paperReviewComment(range, PAPER_SECTIONS.comment, text, range.source),
+      paperReviewComment(
+        range,
+        PAPER_SECTIONS.comment,
+        `${text.trim()}\n\nSelected PDF text (page ${selection.page}):\n${selection.text}`,
+        range.source,
+      ),
+      { insertAtCaret: false },
     );
     setError(null);
     return true;
@@ -233,7 +204,6 @@ export default function PaperPanel(context: PanelContext) {
           }
         />
       )}
-      <ProposalList {...context} state={state} reveal={reveal} />
       {(error || query.error) && !missing && (
         <div role="alert" className="border-t border-border px-3 py-2 text-xs text-destructive">
           {error ?? query.error}
