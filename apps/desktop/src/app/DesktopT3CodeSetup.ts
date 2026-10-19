@@ -35,6 +35,8 @@ const decodeSettings = Schema.decodeEffect(SettingsJson);
 const decodeSettingsRecord = Schema.decodeUnknownEffect(SettingsRecord);
 const encodeSettings = Schema.encodeEffect(SettingsJson);
 const KEYCHAIN_NAMES = [
+  // Electron captures the staged package name before asynchronous startup sets the visible name.
+  "t3code",
   "T3 Code Beta",
   "T3 Code Alpha",
   "T3 Code",
@@ -79,25 +81,20 @@ export const importSetup = Effect.fn("desktop.t3CodeSetup.import")(function* () 
         () => Effect.succeed(null),
       ),
     );
-  const keys = yield* Effect.cached(
-    Effect.gen(function* () {
-      const candidates = [];
-      for (const name of KEYCHAIN_NAMES) {
-        const result = yield* resolveChromiumKeys({
-          platform: "darwin",
-          keychainService: `${name} Safe Storage`,
-          keychainAccount: name,
-          linuxSecretApplication: undefined,
-        }).pipe(
-          Effect.catchIf(
-            (error) => error.reason === "keychainItemMissing",
-            () => Effect.succeed(null),
-          ),
-        );
-        if (result !== null) candidates.push(result);
-      }
-      return candidates;
-    }),
+  const keys = yield* Effect.forEach(KEYCHAIN_NAMES, (name) =>
+    Effect.cached(
+      resolveChromiumKeys({
+        platform: "darwin",
+        keychainService: `${name} Safe Storage`,
+        keychainAccount: name,
+        linuxSecretApplication: undefined,
+      }).pipe(
+        Effect.catchIf(
+          (error) => error.reason === "keychainItemMissing",
+          () => Effect.succeed(null),
+        ),
+      ),
+    ),
   );
   const decrypt = Effect.fnUntraced(function* (encoded: string) {
     const encrypted = Buffer.from(encoded, "base64");
@@ -107,12 +104,18 @@ export const importSetup = Effect.fn("desktop.t3CodeSetup.import")(function* () 
         detail: "T3 Code uses an unsupported credential format.",
       });
     }
-    for (const candidate of yield* keys) {
+    let foundKey = false;
+    for (const readKeys of keys) {
+      const candidate = yield* readKeys;
+      if (candidate === null) continue;
+      foundKey = true;
       const value = decryptChromiumValue(encrypted, candidate, "", 23, "darwin");
       if (value !== null) return value;
     }
     return yield* new T3CodeSetupImportError({
-      detail: "Could not unlock T3 Code's saved login. Allow T3 Paper access to its Keychain item.",
+      detail: foundKey
+        ? "The saved T3 Code Keychain entries could not decrypt its login."
+        : "No saved T3 Code Keychain entry was found.",
     });
   });
   const encrypt = (value: string) =>
