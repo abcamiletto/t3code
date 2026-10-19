@@ -58,11 +58,11 @@ const PaperStatusTool = Tool.make("paper_status", {
 
 const PaperProposeEditsTool = Tool.make("paper_propose_edits", {
   description:
-    'Default to this tool for review comments whose section is "Paper comment" or "Paper proposal", and requests to rewrite paper text. Offer 2–4 genuinely different replacement LaTeX options, each with a short note; the user sees them as A, B, C, D, so refer to them by letter. Use a minimal exact original span occurring once in the workspace-relative file. Never also edit that span directly. The user selects an option for T3 to apply. After proposal feedback, propose revised options again rather than editing directly, unless explicitly told to apply.',
+    "Offer a reviewable LaTeX change when the user asks for a preview or alternatives, or a rewrite needs a meaningful choice. Apply clear, specific requests directly with normal file-editing tools, then check paper_status; obvious corrections do not need proposal approval. Provide 1–4 replacement options with short notes; one option is enough for a single suggested change. Do not invent alternatives to fill a quota. Multiple options appear as A, B, C, D. Use a minimal exact original span occurring once in the workspace-relative file. When proposing, leave that span unchanged until the user applies an option. Applied proposals are already written to disk: read the current source and paper_status before making further edits.",
   parameters: Schema.Struct({
     file: Schema.String,
     original: Schema.String.check(Schema.isMinLength(1)),
-    options: Schema.Array(PaperProposalOption).check(Schema.isMinLength(2), Schema.isMaxLength(4)),
+    options: Schema.Array(PaperProposalOption).check(Schema.isMinLength(1), Schema.isMaxLength(4)),
     summary: Schema.optionalKey(Schema.String),
   }),
   success: Schema.Struct({ paperProposal: PaperProposalReference, message: Schema.String }),
