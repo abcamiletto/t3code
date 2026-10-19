@@ -18,6 +18,7 @@ import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
 } from "~/components/chat/MessagesTimeline.logic";
+import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
 
 describe("paper proposals in the timeline", () => {
   const runId = RunId.make("paper-run");
@@ -63,7 +64,7 @@ describe("paper proposals in the timeline", () => {
     type: "command_execution",
     input: "vp test run",
   });
-  const turn = (proposal: OrchestrationV2TurnItem) => {
+  const turn = (proposal: OrchestrationV2TurnItem, reply = "Here it is.") => {
     const items: OrchestrationV2TurnItem[] = [
       {
         ...base("prompt", 0),
@@ -82,7 +83,7 @@ describe("paper proposals in the timeline", () => {
         ...base("reply", 4),
         type: "assistant_message",
         messageId: MessageId.make("reply"),
-        text: "Here it is.",
+        text: reply,
         streaming: false,
       },
     ];
@@ -151,6 +152,20 @@ describe("paper proposals in the timeline", () => {
       "turn-fold",
       "attempt-fold",
       "paper-proposal",
+    ]);
+  });
+
+  it("renders a referenced proposal only inside the reply and keeps code examples out of placement", () => {
+    const proposal = proposeCall("completed", { structuredContent: { paperProposal } });
+    const markdown = ProposalLinks.formatPaperProposalLink(paperProposal);
+    expect(
+      rowsFor(turn(proposal, `Choose a refinement.\n\n${markdown}\n\nI recommend A.`), false),
+    ).toEqual(["message", "turn-fold", "message"]);
+    expect(rowsFor(turn(proposal, `\`\`\`markdown\n${markdown}\n\`\`\``), false)).toEqual([
+      "message",
+      "turn-fold",
+      "paper-proposal",
+      "message",
     ]);
   });
 

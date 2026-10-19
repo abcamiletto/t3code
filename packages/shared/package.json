@@ -267,6 +267,10 @@
       "types": "./src/threadLinks.ts",
       "import": "./src/threadLinks.ts"
     },
+    "./paperProposalLinks": {
+      "types": "./src/paperProposalLinks.ts",
+      "import": "./src/paperProposalLinks.ts"
+    },
     "./composerContextReferences": {
       "types": "./src/composerContextReferences.ts",
       "import": "./src/composerContextReferences.ts"
@@ -521,6 +525,7 @@
   "devDependencies": {
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
+    "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
     "micromark-util-types": "catalog:",
     "vite-plus": "catalog:"
