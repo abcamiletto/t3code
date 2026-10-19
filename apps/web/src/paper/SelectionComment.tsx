@@ -2,7 +2,6 @@ import { MessageSquarePlus } from "lucide-react";
 import { useState } from "react";
 import { Textarea } from "~/components/ui/textarea";
 import { Button } from "~/components/ui/button";
-import { PaperIconButton } from "./PaperIconButton";
 import type { PaperSelection } from "./selection";
 
 export function SelectionComment({
@@ -64,14 +63,15 @@ export function SelectionComment({
           </div>
         </div>
       ) : (
-        <PaperIconButton
-          label="Comment"
+        <Button
+          aria-label="Comment"
+          size="icon-xs"
           variant="outline"
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => setEditing(true)}
         >
           <MessageSquarePlus />
-        </PaperIconButton>
+        </Button>
       )}
     </div>
   );
