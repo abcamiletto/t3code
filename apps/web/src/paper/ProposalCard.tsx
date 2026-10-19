@@ -48,6 +48,7 @@ export function ProposalCard({
   const current = resolved ?? proposal;
   const choice = current.status === "applied" ? (current.appliedOptionIndex ?? selected) : selected;
   const option = proposal.options[choice]!;
+  const multipleOptions = proposal.options.length > 1;
   const actionable = canResolve && !busy && current.status === "pending";
   const locationAction = showLocation && (
     <Button
@@ -76,18 +77,6 @@ export function ProposalCard({
       return;
     }
     setResolved(result.value);
-    if (resolution.type === "apply") {
-      addComment(
-        composerDraftTarget,
-        paperReviewComment(
-          proposal,
-          PAPER_SECTIONS.applied,
-          `Applied option ${optionLetter(resolution.optionIndex)}`,
-          proposal.options[resolution.optionIndex]!.latex,
-        ),
-        { insertAtCaret: false },
-      );
-    }
   };
 
   const reply = () => {
@@ -169,20 +158,22 @@ export function ProposalCard({
           </Button>
         </div>
       )}
-      <ToggleGroup
-        aria-label="Options"
-        disabled={current.status !== "pending"}
-        value={[String(choice)]}
-        onValueChange={([value]) => {
-          if (value !== undefined) setSelected(Number(value));
-        }}
-      >
-        {proposal.options.map((alternative, index) => (
-          <Toggle key={alternative.latex} value={String(index)}>
-            Option {optionLetter(index)}
-          </Toggle>
-        ))}
-      </ToggleGroup>
+      {multipleOptions && (
+        <ToggleGroup
+          aria-label="Options"
+          disabled={current.status !== "pending"}
+          value={[String(choice)]}
+          onValueChange={([value]) => {
+            if (value !== undefined) setSelected(Number(value));
+          }}
+        >
+          {proposal.options.map((alternative, index) => (
+            <Toggle key={alternative.latex} value={String(index)}>
+              Option {optionLetter(index)}
+            </Toggle>
+          ))}
+        </ToggleGroup>
+      )}
       <div
         className={compact ? "flex min-h-0 flex-col gap-3" : "grid min-h-0 gap-3 sm:grid-cols-2"}
       >
@@ -196,7 +187,7 @@ export function ProposalCard({
         )}
         <section className="flex min-w-0 flex-col gap-2" aria-label="Proposed text">
           <h3 className="text-xs font-medium text-success-foreground">
-            After · Option {optionLetter(choice)}
+            {multipleOptions ? `After · Option ${optionLetter(choice)}` : "After"}
           </h3>
           <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-base leading-relaxed wrap-anywhere">
             <TypesetText latex={option.latex} />
@@ -220,7 +211,7 @@ export function ProposalCard({
           onClick={() => void submit({ type: "apply", optionIndex: selected })}
         >
           <Check />
-          Apply option {optionLetter(choice)}
+          {multipleOptions ? `Apply option ${optionLetter(choice)}` : "Apply"}
         </Button>
       </div>
       <PaperReplyInput value={feedback} onChange={setFeedback} onSubmit={reply} />
