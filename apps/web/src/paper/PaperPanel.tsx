@@ -77,7 +77,7 @@ function PaperEmpty({ label, compiler = false }: { label: string; compiler?: boo
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-xs text-muted-foreground">
       <Icon className="size-5" />
       <span>{label}</span>
-      {compiler && <code className="select-all text-xs">brew install tectonic</code>}
+      {compiler && <span>Install TeX Live (MacTeX on macOS) or MiKTeX with latexmk.</span>}
     </div>
   );
 }
@@ -154,6 +154,20 @@ export default function PaperPanel(context: PanelContext) {
         diagnosticsOpen={diagnosticsOpen}
         onDiagnostics={() => setDiagnosticsOpen((open) => !open)}
       />
+      {state.build.status === "failed" && !missing && (
+        <div
+          role="alert"
+          className="shrink-0 border-b border-destructive/25 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        >
+          <p>
+            Build failed.{" "}
+            {state.build.pdfPath
+              ? "Showing the previous PDF; latest changes are not displayed."
+              : "No current PDF is available."}
+          </p>
+          <p>{state.build.diagnostics.find((entry) => entry.severity === "error")?.message}</p>
+        </div>
+      )}
       {diagnosticsOpen && (
         <div className="max-h-40 shrink-0 overflow-y-auto border-b border-border px-2 py-1">
           {state.build.diagnostics.map((diagnostic) => (
@@ -189,7 +203,7 @@ export default function PaperPanel(context: PanelContext) {
       {!state.isLatex ? (
         <PaperEmpty label="No LaTeX document in this workspace" />
       ) : missing ? (
-        <PaperEmpty label="Tectonic missing" compiler />
+        <PaperEmpty label="LaTeX tools missing" compiler />
       ) : (
         <PaperPdf
           {...context}

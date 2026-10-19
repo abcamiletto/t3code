@@ -4,15 +4,26 @@ export function parseDiagnostics(output: string, cwd: string): PaperDiagnostic[]
   const diagnostics: PaperDiagnostic[] = [];
   // Compiler color escapes must not become part of file names or diagnostic text.
   const plain = output.replaceAll(new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, "g"), "");
-  for (const raw of plain.split(/\r?\n/)) {
+  const lines = plain.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index++) {
+    const raw = lines[index]!;
     const prefixed = /^(error|warning):\s*(.*)$/.exec(raw.trim());
     const located = /^(.*?\.(?:tex|bib|sty|cls|bst)):(\d+):\s*(.*)$/.exec(
       prefixed?.[2] ?? raw.trim(),
     );
-    const tex = /^(?:!\s*|(?:LaTeX|Package\s+\S+|Class\s+\S+)\s+Warning:\s*)(.*)$/.exec(raw);
+    const tex = /^(?:!\s*|(?:LaTeX(?: Font)?|Package\s+\S+|Class\s+\S+)\s+Warning:\s*)(.*)$/.exec(
+      raw,
+    );
     if (!prefixed && !located && !tex && !/^(?:Over|Under)full \\[hv]box/.test(raw)) continue;
-    const message = located?.[3] ?? prefixed?.[2] ?? tex?.[1] ?? raw.trim();
+    let message = located?.[3] ?? prefixed?.[2] ?? tex?.[1] ?? raw.trim();
+    const fontSubstitution = /LaTeX Font Warning:/.test(raw);
+    if (fontSubstitution) {
+      while (lines[index + 1]?.startsWith("(Font)"))
+        message += ` ${lines[++index]!.replace(/^\(Font\)\s*/, "")}`;
+      message = `Font substitution: ${message}`;
+    }
     const severity =
+      fontSubstitution ||
       prefixed?.[1] === "error" ||
       raw.startsWith("!") ||
       (located && !prefixed && !/warning/i.test(message))

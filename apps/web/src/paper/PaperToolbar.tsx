@@ -8,6 +8,7 @@ import {
   Minus,
   Plus,
   RotateCw,
+  TriangleAlert,
 } from "lucide-react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Button } from "~/components/ui/button";
@@ -41,6 +42,9 @@ export function PaperToolbar({
 }) {
   const building = state.build.status === "building";
   const errors = state.build.diagnostics.filter((entry) => entry.severity === "error").length;
+  const warnings = state.build.diagnostics.length - errors;
+  const status =
+    state.build.status === "succeeded" && warnings > 0 ? "Built with warnings" : state.build.status;
   return (
     <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2 text-xs">
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
@@ -48,9 +52,11 @@ export function PaperToolbar({
       </span>
       <PaperProposalNavigation state={state} threadRef={threadRef} />
       <Tooltip>
-        <TooltipTrigger render={<span role="img" aria-label={state.build.status} />}>
+        <TooltipTrigger render={<span role="img" aria-label={status} />}>
           {building ? (
             <LoaderCircle className="size-3.5 animate-spin text-muted-foreground" />
+          ) : state.build.status === "succeeded" && warnings > 0 ? (
+            <TriangleAlert className="size-3.5 text-warning" />
           ) : state.build.status === "succeeded" ? (
             <Check className="size-3.5 text-success-foreground" />
           ) : state.build.status === "failed" ? (
@@ -59,7 +65,7 @@ export function PaperToolbar({
             <CircleDashed className="size-3.5 text-muted-foreground" />
           )}
         </TooltipTrigger>
-        <TooltipPopup>{state.build.status}</TooltipPopup>
+        <TooltipPopup>{status}</TooltipPopup>
       </Tooltip>
       {state.build.diagnostics.length > 0 && (
         <Button
@@ -70,7 +76,7 @@ export function PaperToolbar({
           onClick={onDiagnostics}
         >
           <ListChecks />
-          {errors > 0 && errors}
+          {errors || warnings}
         </Button>
       )}
       <span className="mx-1 shrink-0 tabular-nums text-muted-foreground">
