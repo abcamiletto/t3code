@@ -319,7 +319,12 @@ const startup = Effect.gen(function* () {
     Effect.catch((error) =>
       logStartupError("Could not import the existing T3 Code setup", {
         error: error._tag,
-        detail: error._tag === "T3CodeSetupImportError" ? error.message : undefined,
+        detail:
+          error._tag === "T3CodeSetupImportError"
+            ? error.message
+            : error._tag === "ChromiumKeyError"
+              ? error.reason
+              : undefined,
       }),
     ),
   );
