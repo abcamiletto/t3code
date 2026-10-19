@@ -44,8 +44,14 @@ Each is a few lines that register or call into fork-owned code:
 ## Building the app
 
 ```sh
-node scripts/build-desktop-artifact.ts --platform mac --target dir --arch arm64 --output-dir release
+node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 --output-dir release
 ```
 
 The build is ad-hoc signed and has no update feed, so it can never be replaced by an official
-release. Copy `release/mac-arm64/T3 Paper.app` (or wherever the script reports) to `/Applications`.
+release. electron-builder's ad-hoc signature does not survive packaging (`codesign --verify` reports
+missing resources), so re-sign the app with `codesign --force --deep --sign -` and repackage it with
+`hdiutil create` before publishing the DMG as a GitHub release on the fork.
+
+Upstream desktop tests that assert the official app's scheme, name or profile paths are updated
+to T3 Paper's values when they arrive in a rebase. The Linux theme-icon tests assume a
+case-sensitive filesystem and fail on macOS regardless of the fork.
