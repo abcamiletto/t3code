@@ -57,7 +57,7 @@ const layerNoCompiler = Layer.succeed(ProcessRunner.ProcessRunner, {
   run: () =>
     Effect.fail(
       new ProcessRunner.ProcessSpawnError({
-        command: "latexmk",
+        command: "tectonic",
         argumentCount: 7,
         cause: new Error("No compiler"),
       }),
@@ -75,7 +75,7 @@ const fakeCompile = (request: ProcessRunner.ProcessRunInput) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const output = request.args.find((arg) => arg.startsWith("-outdir="))!.slice("-outdir=".length);
+    const output = request.args[request.args.indexOf("--outdir") + 1]!;
     yield* fs.writeFileString(path.join(output, "main.pdf"), "%PDF-test");
     yield* fs.writeFile(
       path.join(output, "main.synctex.gz"),
@@ -94,11 +94,10 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         const runner: ProcessRunner.ProcessRunner["Service"] = {
           run: (request) =>
             Effect.gen(function* () {
+              expect(request.command).toBe("tectonic");
               builds++;
               const compiled = yield* fakeCompile(request);
-              const output = request.args
-                .find((arg) => arg.startsWith("-outdir="))!
-                .slice("-outdir=".length);
+              const output = request.args[request.args.indexOf("--outdir") + 1]!;
               if (builds === 1) {
                 yield* fs.writeFileString(
                   path.join(output, "main.log"),
@@ -894,7 +893,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         run: () =>
           Effect.fail(
             new ProcessRunner.ProcessSpawnError({
-              command: "latexmk",
+              command: "tectonic",
               argumentCount: 7,
               cause: PlatformError.systemError({
                 _tag: "NotFound",
@@ -923,7 +922,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         {
           severity: "error",
           message:
-            "latexmk is not installed. Install TeX Live (MacTeX on macOS) or MiKTeX with latexmk on the machine that owns this project.",
+            "Tectonic is not installed. Install it with `brew install tectonic` on the machine that owns this project.",
           code: "compiler_missing",
         },
       ]);
