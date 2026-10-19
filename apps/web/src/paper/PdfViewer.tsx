@@ -1,7 +1,7 @@
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import type { PaperPdfBox, PaperProposal, ScopedThreadRef } from "@t3tools/contracts";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
-import type { DraftId } from "~/composerDraftStore";
+import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
 import { observeResize } from "~/lib/observeResize";
 import { EMPTY_PAPER_HIGHLIGHTS, usePaperHighlights, type PaperHighlight } from "./commentStore";
 import {
@@ -127,6 +127,7 @@ function DocumentLayer({
                   .map((box) => (
                     <div
                       key={box.id}
+                      data-paper-comment={box.commentId}
                       className="pointer-events-none absolute z-10 bg-warning/15"
                       style={{
                         left: box.x * page.scale,
@@ -179,7 +180,7 @@ export function PdfViewer({
   assetError: string | null;
   zoom: number;
   onPageChange: (page: number, count: number) => void;
-  onComment: (selection: PaperSelection, comment: string) => Promise<boolean>;
+  onComment: (selection: PaperSelection, comment: string) => Promise<string | null>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const ownedDocuments = useRef(new Set<PaperDocument>());
@@ -192,9 +193,14 @@ export function PdfViewer({
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<PaperSelection | null>(null);
   const workspaceKey = `${scopedThreadKey(context.threadRef)}:${context.cwd}`;
-  const comments = usePaperHighlights(
+  const highlights = usePaperHighlights(
     (state) => state.byWorkspace[workspaceKey] ?? EMPTY_PAPER_HIGHLIGHTS,
   );
+  const reviewComments = useComposerDraftStore(
+    (state) => state.getComposerDraft(context.composerDraftTarget)?.reviewComments,
+  );
+  const commentIds = new Set(reviewComments?.map((comment) => comment.id));
+  const comments = highlights.filter((box) => commentIds.has(box.commentId));
   const addHighlights = usePaperHighlights((state) => state.add);
   const clearHighlights = usePaperHighlights((state) => state.clear);
   const layout = layoutPages(documents.active?.sizes ?? [], viewport.width, zoom);
@@ -332,12 +338,12 @@ export function PdfViewer({
   };
 
   const submitComment = async (selected: PaperSelection, text: string) => {
-    const success = await onComment(selected, text);
-    if (success) {
-      addHighlights(workspaceKey, selected.boxes);
+    const commentId = await onComment(selected, text);
+    if (commentId !== null) {
+      addHighlights(workspaceKey, commentId, selected.boxes);
       window.getSelection()?.removeAllRanges();
     }
-    return success;
+    return commentId !== null;
   };
 
   return (

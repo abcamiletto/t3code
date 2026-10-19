@@ -9,18 +9,32 @@ import "../index.css";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { buildMessageContext } from "~/lib/composerContextRecords";
 import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
+import { paperReviewComment, PAPER_SECTIONS } from "./reviewComment";
 
 it("keeps comments open while typing and reveals proposals at their PDF passage", async () => {
   const container = document.createElement("div");
   container.style.cssText = "display:flex;width:600px;height:400px";
   document.body.append(container);
   const root = createRoot(container);
-  const onComment = vi.fn<ComponentProps<typeof PdfViewer>["onComment"]>(async () => true);
   const onPageChange = vi.fn();
   const threadRef = {
     environmentId: EnvironmentId.make("paper-test"),
     threadId: ThreadId.make("paper-thread"),
   };
+  const onComment = vi.fn<ComponentProps<typeof PdfViewer>["onComment"]>(
+    async (selection, text) => {
+      const comment = paperReviewComment(
+        { file: "main.tex", startLine: 1, endLine: 1 },
+        PAPER_SECTIONS.comment,
+        text,
+        selection.text,
+      );
+      useComposerDraftStore
+        .getState()
+        .addReviewComment(threadRef, comment, { insertAtCaret: false });
+      return comment.id;
+    },
+  );
   const viewerProps: ComponentProps<typeof PdfViewer> = {
     url: pdfUrl,
     zoom: 1,
@@ -82,6 +96,21 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
     expect([...new Set(crossPageSelection.boxes.map((box) => box.page))]).toEqual([1, 2]);
     expect(crossPageSelection.boxes).toHaveLength(2);
     expect(crossPageSelection.boxes.every((box) => box.height < 30)).toBe(true);
+    const draftStore = useComposerDraftStore.getState();
+    const [firstComment, secondComment] = draftStore.getComposerDraft(threadRef)!.reviewComments;
+    const highlightsFor = (id: string) =>
+      container.querySelectorAll(`[data-paper-comment="${id}"]`);
+    expect(highlightsFor(firstComment!.id).length).toBeGreaterThan(0);
+    expect(highlightsFor(secondComment!.id)).toHaveLength(2);
+    await act(() => draftStore.removeReviewComment(threadRef, firstComment!.id));
+    expect(highlightsFor(firstComment!.id)).toHaveLength(0);
+    expect(highlightsFor(secondComment!.id)).toHaveLength(2);
+    await act(() =>
+      draftStore.addReviewComment(threadRef, firstComment!, { insertAtCaret: false }),
+    );
+    expect(highlightsFor(firstComment!.id).length).toBeGreaterThan(0);
+    await act(() => draftStore.setReviewComments(threadRef, []));
+    expect(container.querySelectorAll("[data-paper-comment]")).toHaveLength(0);
     const proposal: PaperProposal = {
       id: "heading-proposal",
       threadId: threadRef.threadId,
