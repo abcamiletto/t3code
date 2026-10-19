@@ -39,6 +39,20 @@ const result = (code = 0, stderr = ""): ProcessRunner.ProcessRunOutput => ({
   stdoutInvalidUtf8: false,
   stderrInvalidUtf8: false,
 });
+const withSynctex = (
+  runner: ProcessRunner.ProcessRunner["Service"],
+): ProcessRunner.ProcessRunner["Service"] => ({
+  run: (request) =>
+    request.command === "synctex"
+      ? Effect.succeed({
+          ...result(),
+          stdout:
+            request.args[0] === "edit"
+              ? `Output:main.pdf\nInput:${request.cwd}/main.tex\nLine:3\n`
+              : "Output:main.pdf\nPage:1\nh:10\nv:20\nW:30\nH:10\n",
+        })
+      : runner.run(request),
+});
 const layerNoCompiler = Layer.succeed(ProcessRunner.ProcessRunner, {
   run: () =>
     Effect.fail(
@@ -65,21 +79,7 @@ const fakeCompile = (request: ProcessRunner.ProcessRunInput) =>
     yield* fs.writeFileString(path.join(output, "main.pdf"), "%PDF-test");
     yield* fs.writeFile(
       path.join(output, "main.synctex.gz"),
-      NodeZlib.gzipSync(`SyncTeX Version:1
-Input:1:${request.cwd}/main.tex
-Magnification:1000
-Unit:1
-X Offset:0
-Y Offset:0
-Content:
-{1
-(1,4:655360,1310720:1966080,655360,131072
-g1,3:2621440,1310720
-)
-}1
-Postamble:
-Count:3
-`),
+      NodeZlib.gzipSync("SyncTeX test fixture"),
     );
     return result();
   }).pipe(Effect.orDie);
@@ -130,7 +130,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       }).pipe(
         Effect.provide(
           PaperService.layer.pipe(
-            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
           ),
         ),
       );
@@ -188,7 +188,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         }).pipe(
           Effect.provide(
             PaperService.layer.pipe(
-              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
               Layer.provide(
                 Layer.succeed(FileSystem.FileSystem, { ...fs, watch: () => Stream.never }),
               ),
@@ -239,7 +239,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       }).pipe(
         Effect.provide(
           PaperService.layer.pipe(
-            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
             Layer.provide(
               Layer.succeed(FileSystem.FileSystem, {
                 ...fs,
@@ -278,7 +278,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       }).pipe(
         Effect.provide(
           PaperService.layer.pipe(
-            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
           ),
         ),
       );
@@ -561,7 +561,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         }).pipe(
           Effect.provide(
             PaperService.layer.pipe(
-              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+              Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
               Layer.provide(
                 Layer.succeed(FileSystem.FileSystem, {
                   ...fs,
@@ -615,7 +615,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
             ),
         };
         const layer = PaperService.layer.pipe(
-          Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+          Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
           Layer.provide(
             Layer.succeed(FileSystem.FileSystem, {
               ...fs,
@@ -744,7 +744,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
             ),
           );
         const layer = PaperService.layer.pipe(
-          Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+          Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
           Layer.provide(Layer.succeed(FileSystem.FileSystem, { ...fs, watch })),
         );
         yield* Effect.gen(function* () {
@@ -824,7 +824,7 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       }).pipe(
         Effect.provide(
           PaperService.layer.pipe(
-            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, runner)),
+            Layer.provide(Layer.succeed(ProcessRunner.ProcessRunner, withSynctex(runner))),
           ),
         ),
       );
