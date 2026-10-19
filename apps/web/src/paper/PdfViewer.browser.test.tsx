@@ -73,11 +73,14 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
       summary: "Choose a rewrite",
       options: [
         {
-          latex: "A substantial revision needs enough space to read the complete passage. ".repeat(
-            40,
-          ),
+          latex:
+            "A substantial revision needs enough space to read the complete passage. ".repeat(40) +
+            String.raw` $\undefinedPaperMacro$`,
         },
-        { latex: "Limitations and next steps." },
+        {
+          latex: String.raw`The transform $\mathbf{T}_j\in\mathrm{SE}(3)$ is
+\begin{equation}\mathbf{T}_j=\begin{bmatrix}\mathbf{R}_j&\mathbf{p}_j\\\mathbf{0}^{\top}&1\end{bmatrix}\label{eq:fk}\end{equation}`,
+        },
       ],
       status: "pending",
       boxes: [],
@@ -102,8 +105,13 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
     });
     const proposedPane = document.querySelector<HTMLElement>('[aria-label="Proposed text"] > div')!;
     expect(proposedPane.scrollHeight).toBeGreaterThan(proposedPane.clientHeight);
+    expect(proposedPane.querySelector('[role="alert"]')?.textContent).toContain(
+      "undefinedPaperMacro",
+    );
     await act(() => userEvent.click(page.getByRole("button", { name: "Option B", exact: true })));
-    expect(proposedPane.textContent).toBe("Limitations and next steps.");
+    expect(proposedPane.querySelector('[role="alert"]')).toBeNull();
+    expect(proposedPane.querySelectorAll("math")).toHaveLength(2);
+    expect(proposedPane.querySelector("math mtable")).not.toBeNull();
     await act(() => userEvent.keyboard("{Escape}"));
     await vi.waitFor(() =>
       expect(document.querySelector('[data-slot="popover-popup"]')).toBeNull(),
