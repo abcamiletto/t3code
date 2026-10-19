@@ -162,6 +162,7 @@ export default function PaperPanel(context: PanelContext) {
     return true;
   };
   if (!query.data) return <PaperEmpty label={query.error ?? "Paper"} />;
+  // The PDF is shared by the workspace; proposals belong to the active chat.
   const state = {
     ...query.data,
     proposals: query.data.proposals.filter((proposal) => proposal.threadId === threadRef.threadId),

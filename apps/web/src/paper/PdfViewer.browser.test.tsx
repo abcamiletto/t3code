@@ -4,26 +4,10 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { PdfViewer } from "./PdfViewer";
+import pdfUrl from "./fixtures/comment.pdf?url";
 import "../index.css";
 
 it("keeps a PDF comment open when Shift is released and submits the complete draft", async () => {
-  const content = "BT /F1 18 Tf 20 100 Td (An original sentence.) Tj ET";
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = objects.map((object, index) => {
-    const offset = pdf.length;
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-    return offset;
-  });
-  const xref = pdf.length;
-  pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  const url = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
   const container = document.createElement("div");
   container.style.cssText = "display:flex;width:600px;height:400px";
   document.body.append(container);
@@ -38,7 +22,7 @@ it("keeps a PDF comment open when Shift is released and submits the complete dra
     await act(() =>
       root.render(
         <PdfViewer
-          url={url}
+          url={pdfUrl}
           zoom={1}
           assetError={null}
           cwd="/paper"
@@ -81,7 +65,6 @@ it("keeps a PDF comment open when Shift is released and submits the complete dra
   } finally {
     await act(() => root.unmount());
     container.remove();
-    URL.revokeObjectURL(url);
     vi.unstubAllGlobals();
   }
 });
