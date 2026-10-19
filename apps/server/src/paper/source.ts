@@ -11,17 +11,6 @@ export function originalRange(source: string, original: string) {
   };
 }
 
-const normalize = (text: string) =>
-  text
-    .replace(/(?<!\\)%[^\n]*/g, "")
-    .replace(/\\(?:begin|end|label|cite|ref)\*?\{[^}]*\}/g, "")
-    .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g, "")
-    .replace(/\\([&%$#_{}])/g, "$1")
-    .replace(/[{}]/g, "")
-    .replace(/~/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
 export function refineSource(
   file: string,
   source: string,
@@ -33,28 +22,41 @@ export function refineSource(
   const hit = Math.min(lines.length, line);
   let startLine = hit;
   let endLine = hit;
-  const selected = text?.replace(/\s+/g, " ").trim() ?? "";
+  const selected = normalizeText(text ?? "");
   if (selected) {
-    let best = Infinity;
+    let normalized = "";
+    const ends = lines.map((value) => {
+      normalized += normalizeSource(value);
+      return normalized.length;
+    });
     let bestDistance = Infinity;
-    for (let start = Math.max(0, hit - 16); start < Math.min(lines.length, hit + 15); start++) {
-      for (let end = start; end < Math.min(lines.length, hit + 15); end++) {
-        if (normalize(lines.slice(start, end + 1).join("\n")).includes(selected)) {
-          if (
-            end > start &&
-            normalize(lines.slice(start + 1, end + 1).join("\n")).includes(selected)
-          )
-            break;
-          const distance = Math.max(start + 1 - hit, hit - end - 1, 0);
-          if (distance < bestDistance || (distance === bestDistance && end - start < best)) {
-            startLine = start + 1;
-            endLine = end + 1;
-            best = end - start;
-            bestDistance = distance;
-          }
-          break;
-        }
+    for (
+      let index = normalized.indexOf(selected);
+      index >= 0;
+      index = normalized.indexOf(selected, index + 1)
+    ) {
+      const start = ends.findIndex((end) => end > index) + 1;
+      const end = ends.findIndex((end) => end >= index + selected.length) + 1;
+      const distance = Math.max(start - hit, hit - end, 0);
+      if (
+        distance < bestDistance ||
+        (distance === bestDistance && end - start < endLine - startLine)
+      ) {
+        startLine = start;
+        endLine = end;
+        bestDistance = distance;
       }
+    }
+    // A compiler hit can land on a blank paragraph boundary. Keep useful source
+    // context even when rendered math or macros prevent an exact text match.
+    if (bestDistance === Infinity && !lines[hit - 1]!.trim()) {
+      let anchor = hit - 1;
+      while (anchor > 0 && !lines[anchor]!.trim()) anchor--;
+      while (anchor < lines.length - 1 && !lines[anchor]!.trim()) anchor++;
+      startLine = anchor + 1;
+      endLine = anchor + 1;
+      while (startLine > 1 && lines[startLine - 2]!.trim()) startLine--;
+      while (endLine < lines.length && lines[endLine]!.trim()) endLine++;
     }
   }
   return {
@@ -63,4 +65,22 @@ export function refineSource(
     endLine,
     source: source.slice(offsets[startLine - 1], offsets[endLine]).replace(/\r?\n$/, ""),
   };
+}
+
+function normalizeSource(text: string) {
+  return normalizeText(
+    text
+      .replace(/(?<!\\)%[^\n]*/g, "")
+      .replace(/\\(?:begin|end|label|cite|ref)\*?\{[^}]*\}/g, "")
+      .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g, "")
+      .replace(/\\([&%$#_{}])/g, "$1"),
+  );
+}
+
+function normalizeText(text: string) {
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\[\d+(?:\s*[-–,]\s*\d+)*\]/g, "")
+    .replace(/[^\p{L}\p{N}]/gu, "");
 }

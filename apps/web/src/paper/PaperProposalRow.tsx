@@ -1,9 +1,6 @@
 import type { PaperProposalReference, ScopedThreadRef } from "@t3tools/contracts";
-import { PanelRightOpen } from "lucide-react";
 import { useEnvironmentQuery } from "~/state/query";
-import { PaperIconButton } from "./PaperIconButton";
 import { ProposalCard } from "./ProposalCard";
-import { openPaperPanel } from "./openPaperPanel";
 import { paperEnvironment } from "./state";
 
 export default function PaperProposalRow({
@@ -29,14 +26,6 @@ export default function PaperProposalRow({
           threadRef={threadRef}
           cwd={reference.cwd}
           compact
-          actions={
-            <PaperIconButton
-              label="View in paper"
-              onClick={() => openPaperPanel(threadRef, reference)}
-            >
-              <PanelRightOpen />
-            </PaperIconButton>
-          }
         />
       ) : (
         <div className="text-xs text-muted-foreground">

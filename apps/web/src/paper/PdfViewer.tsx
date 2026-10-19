@@ -1,5 +1,5 @@
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
-import type { PaperProposal, ScopedThreadRef } from "@t3tools/contracts";
+import type { PaperPdfBox, PaperProposal, ScopedThreadRef } from "@t3tools/contracts";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { DraftId } from "~/composerDraftStore";
 import { observeResize } from "~/lib/observeResize";
@@ -17,6 +17,7 @@ import { PdfPage } from "./PdfPage";
 import { ProposalOverlay } from "./ProposalOverlay";
 import { readPaperSelection, type PaperSelection } from "./selection";
 import { SelectionComment } from "./SelectionComment";
+import { locatePaperProposal } from "./proposalLocation";
 
 type PaperViewerContext = {
   threadRef: ScopedThreadRef;
@@ -104,7 +105,8 @@ function DocumentLayer({
                 {context.proposals
                   .filter(
                     (proposal) =>
-                      proposal.status === "pending" &&
+                      (proposal.status === "pending" ||
+                        proposal.id === context.reveal?.proposalId) &&
                       proposal.boxes.some((box) => box.page === index + 1),
                   )
                   .map((proposal) => (
@@ -225,18 +227,58 @@ export function PdfViewer({
   const revealProposal = context.proposals.find(
     (proposal) => proposal.id === context.reveal?.proposalId,
   );
-  const revealBox = revealProposal?.boxes[0];
+  const [location, setLocation] = useState<{
+    documentId: string;
+    proposalId: string;
+    boxes: PaperPdfBox[];
+  } | null>(null);
+  const needsTextLocation =
+    revealProposal && (revealProposal.boxes.length === 0 || revealProposal.status !== "pending");
+  useEffect(() => {
+    const document = documents.active;
+    if (!document || !revealProposal || !needsTextLocation) return;
+    let cancelled = false;
+    const save = (boxes: PaperPdfBox[]) => {
+      if (!cancelled)
+        setLocation({ documentId: document.id, proposalId: revealProposal.id, boxes });
+    };
+    const text =
+      revealProposal.status === "applied" && revealProposal.appliedOptionIndex !== undefined
+        ? revealProposal.options[revealProposal.appliedOptionIndex]!.latex
+        : revealProposal.original;
+    void locatePaperProposal(document.pdf, text)
+      .then(save)
+      .catch(() => save([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [documents.active, revealProposal, needsTextLocation]);
+  const locatedBoxes =
+    location?.documentId === documents.active?.id && location?.proposalId === revealProposal?.id
+      ? location?.boxes
+      : undefined;
+  const viewerContext = needsTextLocation
+    ? {
+        ...context,
+        proposals: context.proposals.map((proposal) =>
+          proposal.id === revealProposal?.id
+            ? { ...proposal, boxes: locatedBoxes ?? [] }
+            : proposal,
+        ),
+      }
+    : context;
+  const revealBox = needsTextLocation ? locatedBoxes?.[0] : revealProposal?.boxes[0];
   useLayoutEffect(() => {
     if (!context.reveal || !revealBox || !documents.active || lastReveal.current === context.reveal)
       return;
     const page = layout[revealBox.page - 1];
     if (page) {
       lastReveal.current = context.reveal;
-      const top = page.top + revealBox.y * page.scale;
+      const top = Math.max(0, page.top + revealBox.y * page.scale - viewport.height / 4);
       rootRef.current!.scrollTop = top;
       anchorRef.current = captureScrollAnchor(layout, top);
     }
-  }, [context.reveal, documents.active, revealBox, layout]);
+  }, [context.reveal, documents.active, revealBox, layout, viewport.height]);
 
   const ready = (id: string) => {
     if (documents.pending?.id !== id) return;
@@ -298,7 +340,7 @@ export function PdfViewer({
                 onReady={ready}
                 onError={showError}
                 comments={comments}
-                context={context}
+                context={viewerContext}
               />
             ),
         )}
@@ -310,12 +352,15 @@ export function PdfViewer({
           onCancel={() => setSelection(null)}
         />
       )}
-      {(error || assetError) && (
+      {(error || assetError || locatedBoxes?.length === 0) && (
         <div
           role="alert"
-          className="sticky bottom-0 border-t border-border bg-background px-3 py-2 text-xs text-destructive"
+          className="absolute inset-x-4 z-30 rounded-md border border-border bg-background px-3 py-2 text-xs text-destructive shadow-sm"
+          style={{ top: viewport.scrollTop + 16 }}
         >
-          {error ?? assetError}
+          {error ??
+            assetError ??
+            "Couldn't locate this passage in the current PDF. You can still review it in the chat."}
         </div>
       )}
     </div>

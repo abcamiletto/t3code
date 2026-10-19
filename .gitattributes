@@ -3,6 +3,8 @@
 # Batch files need CRLF for cmd.exe to parse them reliably.
 *.cmd text eol=crlf
 *.bat text eol=crlf
+# PDF cross-reference offsets depend on exact bytes.
+apps/web/src/paper/fixtures/*.pdf binary
 # GitHub's GraphQL schema and the operations graphqlgen writes from it.
 packages/source-control-github/schema/** linguist-generated
 **/*.graphql.ts linguist-generated
