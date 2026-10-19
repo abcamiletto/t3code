@@ -15,7 +15,7 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
   container.style.cssText = "display:flex;width:600px;height:400px";
   document.body.append(container);
   const root = createRoot(container);
-  const onComment = vi.fn(async () => true);
+  const onComment = vi.fn<ComponentProps<typeof PdfViewer>["onComment"]>(async () => true);
   const onPageChange = vi.fn();
   const threadRef = {
     environmentId: EnvironmentId.make("paper-test"),
@@ -63,6 +63,25 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
       "abC\ndef",
     );
     expect(container.querySelector("textarea")).toBeNull();
+    const secondPageText = container.querySelector(
+      '[data-paper-page="2"] [data-paper-text-layer] span',
+    )!;
+    await act(() => {
+      const range = document.createRange();
+      range.setStart(text.firstChild!, 3);
+      range.setEnd(secondPageText.firstChild!, 5);
+      window.getSelection()!.addRange(range);
+      secondPageText.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    });
+    await act(() => userEvent.click(page.getByRole("button", { name: "Comment", exact: true })));
+    await act(() => userEvent.keyboard("Across pages{Enter}"));
+    const crossPageSelection = onComment.mock.lastCall![0];
+    expect(crossPageSelection.text).toBe(
+      text.textContent!.slice(3) + secondPageText.textContent!.slice(0, 5),
+    );
+    expect([...new Set(crossPageSelection.boxes.map((box) => box.page))]).toEqual([1, 2]);
+    expect(crossPageSelection.boxes).toHaveLength(2);
+    expect(crossPageSelection.boxes.every((box) => box.height < 30)).toBe(true);
     const proposal: PaperProposal = {
       id: "heading-proposal",
       threadId: threadRef.threadId,

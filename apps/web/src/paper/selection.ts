@@ -31,41 +31,48 @@ export function readPaperSelection(
       : range.startContainer.parentElement;
   const startPage = start?.closest<HTMLElement>("[data-paper-page]");
   if (!startPage || !root.contains(startPage) || !root.contains(range.endContainer)) return null;
-  const page = Number(startPage.dataset.paperPage);
-  const rects = Array.from(range.getClientRects());
-  const first = rects[0];
-  if (!first) return null;
-  const point = viewportToPdf(
-    { x: first.left, y: first.top },
-    startPage.getBoundingClientRect(),
-    sizes[page - 1]!,
-  );
   const boxes: PaperPdfBox[] = [];
+  let last: DOMRect | undefined;
   for (const element of root.querySelectorAll<HTMLElement>("[data-paper-page]")) {
     const pageNumber = Number(element.dataset.paperPage);
     const bounds = element.getBoundingClientRect();
     const size = sizes[pageNumber - 1]!;
-    for (const rect of rects) {
-      const left = Math.max(bounds.left, rect.left);
-      const top = Math.max(bounds.top, rect.top);
-      const right = Math.min(bounds.right, rect.right);
-      const bottom = Math.min(bounds.bottom, rect.bottom);
-      if (right <= left || bottom <= top) continue;
-      const from = viewportToPdf({ x: left, y: top }, bounds, size);
-      const to = viewportToPdf({ x: right, y: bottom }, bounds, size);
-      boxes.push({ page: pageNumber, ...from, width: to.x - from.x, height: to.y - from.y });
+    const layer = element.querySelector("[data-paper-text-layer]");
+    if (!layer) continue;
+    // A cross-page Range also includes page containers and canvases. Measure only text.
+    const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!range.intersectsNode(node)) continue;
+      const selected = document.createRange();
+      selected.selectNodeContents(node);
+      if (node === range.startContainer) selected.setStart(node, range.startOffset);
+      if (node === range.endContainer) selected.setEnd(node, range.endOffset);
+      if (selected.collapsed) continue;
+      for (const rect of selected.getClientRects()) {
+        const left = Math.max(bounds.left, rect.left);
+        const top = Math.max(bounds.top, rect.top);
+        const right = Math.min(bounds.right, rect.right);
+        const bottom = Math.min(bounds.bottom, rect.bottom);
+        if (right <= left || bottom <= top) continue;
+        const from = viewportToPdf({ x: left, y: top }, bounds, size);
+        const to = viewportToPdf({ x: right, y: bottom }, bounds, size);
+        boxes.push({ page: pageNumber, ...from, width: to.x - from.x, height: to.y - from.y });
+        last = rect;
+      }
     }
   }
+  const first = boxes[0];
+  if (!first || !last) return null;
   const bounds = root.getBoundingClientRect();
-  const last = rects.at(-1)!;
   return {
     formLeft: Math.max(
       8,
       Math.min(root.clientWidth - 272, last.right - bounds.left - 256) + root.scrollLeft,
     ),
     text: selection.toString(),
-    page,
-    ...point,
+    page: first.page,
+    x: first.x,
+    y: first.y,
     boxes,
     left:
       Math.max(8, Math.min(root.clientWidth - 40, last.right - bounds.left + 4)) + root.scrollLeft,
