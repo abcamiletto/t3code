@@ -43,8 +43,9 @@ so short instructions such as "delete this part" retain their target.
 
 ## Pick a rewrite
 
-The agent applies clear, specific requests directly, such as deleting a phrase or fixing a typo.
-For rewrites that need a choice, or when you ask for a preview, it proposes one to four options.
+The agent applies exact replacements, explicit deletions, and mechanical fixes directly.
+Rewording, restructuring, or interpreting feedback requires your approval through a proposal;
+one option is enough.
 Proposals are highlighted on the PDF and shown in the chat.
 
 Click a highlighted passage or its **Review change** button to open the alternatives. You can still
@@ -63,8 +64,7 @@ shows an error and its LaTeX source. The compiled paper PDF remains the referenc
 
 - Click **Apply** to update the `.tex` file and rebuild the PDF. The proposal is marked applied;
   nothing is added to your message draft and no extra agent turn is needed.
-- Type in **Reply** to send feedback. Clear instructions can be applied directly; feedback that
-  needs a choice leads to revised options.
+- Type in **Reply** to send feedback. Interpretive rewrites return as revised options for approval.
 - Dismiss a proposal you don't want.
 
 A proposal goes stale if its original text changes before you apply it.

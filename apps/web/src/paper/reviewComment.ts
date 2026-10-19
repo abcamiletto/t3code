@@ -4,11 +4,12 @@ import type { ReviewCommentContext } from "~/reviewCommentContext";
 
 // The section title reaches the agent verbatim, and agents load MCP tool descriptions lazily,
 // so each title carries the instruction it needs.
+const REVIEW_RULES =
+  "Edit directly only for user-specified exact replacements, explicit deletions, or mechanical fixes. Choosing wording, restructuring, or interpreting feedback needs paper_propose_edits and user Apply; one option is enough. Put returned markdown in its own paragraph. Keep prose brief, preserve complete math boundaries, and check paper_status after edits";
+
 export const PAPER_SECTIONS = {
-  comment:
-    "Paper comment: quoted PDF text is the target; source lines are context. Apply clear requests directly; use paper_propose_edits for choices or previews. Put returned markdown on its own line where each option card belongs in your reply; keep explanations brief. Include complete formulas with matching boundaries in original and replacements. Check paper_status after edits",
-  feedback:
-    "Paper proposal feedback: apply clear requests directly; propose only for choices or previews. Put returned markdown on its own line where each option card belongs; keep explanations brief. Include complete formulas with matching boundaries. Read current source and paper_status; applied options are already saved",
+  comment: `Paper comment: quoted PDF text is the target; source lines are context. ${REVIEW_RULES}`,
+  feedback: `Paper proposal feedback: applied options are already saved. Read current source. ${REVIEW_RULES}`,
 } as const;
 
 export function paperReviewComment(
