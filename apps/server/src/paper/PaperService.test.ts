@@ -418,10 +418,19 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       const { cwd } = yield* temporaryPaper;
       const paper = yield* PaperService.PaperService;
       const first = yield* paper.propose({ ...input, cwd });
+      const otherThread = yield* paper.propose({ ...input, cwd, threadId: "another-thread" });
+      const unscoped = yield* paper.propose({
+        cwd,
+        file: input.file,
+        original: input.original,
+        options,
+      });
       const revised = yield* paper.propose({ ...input, cwd });
       const state = yield* paper.status(cwd);
       expect(state.proposals.map(({ id, status }) => ({ id, status }))).toEqual([
         { id: first.id, status: "dismissed" },
+        { id: otherThread.id, status: "pending" },
+        { id: unscoped.id, status: "pending" },
         { id: revised.id, status: "pending" },
       ]);
     }).pipe(Effect.provide(layerPaper)),
