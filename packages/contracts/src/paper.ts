@@ -18,6 +18,8 @@ const PAPER_FAILURE_MESSAGES = {
   invalid_option: "That option does not exist.",
   original_not_found: "The original text does not appear exactly once in the file.",
   sync_unavailable: "No SyncTeX data for the current build.",
+  synctex_missing:
+    "Source navigation needs the synctex command. Install TeX Live or MiKTeX on the machine that owns this project.",
   io_failed: "Could not read or write the paper files.",
 } as const;
 
