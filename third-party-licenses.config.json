@@ -141,7 +141,7 @@
       "generatedNotices": [
         {
           "licenseId": "Apache-2.0",
-          "copyrights": ["Copyright 2009, 2010, 2013 Andr\u00e9 Berg"]
+          "copyrights": ["Copyright 2009, 2010, 2013 André Berg"]
         }
       ]
     },
@@ -728,6 +728,21 @@
       "generatedNotice": {
         "licenseId": "MIT",
         "copyrights": ["Copyright (c) 2019-present Fabio Spampinato, Andrew Maney"]
+      }
+    },
+    {
+      "repositoryUrl": "https://github.com/siefkenj/unified-latex",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2015-2022 Michael Brade, Jason Siefken"]
+      }
+    },
+    {
+      "name": "trie-prefix-tree",
+      "version": "1.5.1",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["MIT @ Lyndsey Browning"]
       }
     }
   ]
