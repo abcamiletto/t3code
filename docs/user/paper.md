@@ -5,8 +5,11 @@ Paper shows a live PDF of a LaTeX project next to the chat and lets you review i
 ## Start
 
 A project with a `.tex` file in its root shows a TeX icon. Open the right panel and choose
-**Paper**. The project builds with [Tectonic](https://tectonic-typesetting.github.io)
-(`brew install tectonic`) and rebuilds whenever a `.tex`, `.bib`, style or image file changes.
+**Paper**. The project builds with [latexmk](https://ctan.org/pkg/latexmk) from TeX Live
+(MacTeX on macOS) or MiKTeX, and rebuilds whenever a `.tex`, `.bib`, style or image file changes.
+Paper uses the engine configured in your latexmk settings, or pdfLaTeX by default.
+Font substitutions fail the build because they can remove italics or bold text. A failed build
+keeps the previous PDF and shows a visible error; it does not mean your latest edits are displayed.
 Build output goes to `.t3-paper/`, which ignores itself in Git.
 
 PDF/source navigation uses the standard `synctex` command from TeX Live (MacTeX or BasicTeX on
