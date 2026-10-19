@@ -25,10 +25,20 @@ Select text in the PDF and click the comment button. The comment is added to you
 the matching `.tex` lines, the same way a code review comment is. Send it to ask the agent for
 changes.
 
+Each comment includes the exact PDF text you selected as well as the matching source context,
+so short instructions such as "delete this part" retain their target.
+
 ## Pick a rewrite
 
 When you comment on wording, the agent proposes two to four alternatives instead of editing the
 file. They are highlighted on the PDF and shown in the chat.
+
+Use **View in PDF** on a proposal to jump to the passage, highlight it, and open the alternatives
+beside it. New proposals open there automatically while you are working in Paper. If the passage
+cannot be located in the current PDF, the proposal stays available in the chat.
+
+The popup shows the original and one selected alternative side by side. Switch options at the top;
+long passages scroll inside each text pane. Red marks the original; green marks the proposed text.
 
 - Click an option and **Apply** it. The `.tex` file is updated and the PDF rebuilds. Your next
   message tells the agent which option you chose.
