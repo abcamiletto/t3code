@@ -15,6 +15,8 @@ import { paperEnvironment } from "./state";
 import { PaperReplyInput } from "./PaperReplyInput";
 import { openPaperPanel } from "./openPaperPanel";
 
+const optionLetter = (index: number) => String.fromCharCode(65 + index);
+
 export function ProposalCard({
   proposal,
   threadRef,
@@ -46,6 +48,7 @@ export function ProposalCard({
   const current = resolved ?? proposal;
   const choice = current.status === "applied" ? (current.appliedOptionIndex ?? selected) : selected;
   const option = proposal.options[choice]!;
+  const actionable = canResolve && !busy && current.status === "pending";
   const locationAction = showLocation && (
     <Button
       size="micro"
@@ -60,7 +63,7 @@ export function ProposalCard({
   const submit = async (
     resolution: { type: "apply"; optionIndex: number } | { type: "dismiss" },
   ) => {
-    if (busy || current.status !== "pending") return;
+    if (!actionable) return;
     setBusy(true);
     setError(null);
     const result = await resolve({
@@ -79,7 +82,7 @@ export function ProposalCard({
         paperReviewComment(
           proposal,
           PAPER_SECTIONS.applied,
-          `Applied option ${String.fromCharCode(65 + resolution.optionIndex)}`,
+          `Applied option ${optionLetter(resolution.optionIndex)}`,
           proposal.options[resolution.optionIndex]!.latex,
         ),
         { insertAtCaret: false },
@@ -97,9 +100,7 @@ export function ProposalCard({
         feedback,
         [
           proposal.original,
-          ...proposal.options.map(
-            (option, index) => `${String.fromCharCode(65 + index)}: ${option.latex}`,
-          ),
+          ...proposal.options.map((option, index) => `${optionLetter(index)}: ${option.latex}`),
         ].join("\n\n"),
       ),
       { insertAtCaret: false },
@@ -134,7 +135,7 @@ export function ProposalCard({
         if (/^[1-4]$/.test(event.key) && index < proposal.options.length) {
           event.preventDefault();
           setSelected(index);
-        } else if (event.key === "Enter" && canResolve && !busy && proposal.options.length > 0) {
+        } else if (event.key === "Enter" && actionable) {
           if (event.target instanceof Element && event.target.closest('button:not([role="radio"])'))
             return;
           event.preventDefault();
@@ -178,7 +179,7 @@ export function ProposalCard({
       >
         {proposal.options.map((alternative, index) => (
           <Toggle key={alternative.latex} value={String(index)}>
-            Option {String.fromCharCode(65 + index)}
+            Option {optionLetter(index)}
           </Toggle>
         ))}
       </ToggleGroup>
@@ -195,7 +196,7 @@ export function ProposalCard({
         )}
         <section className="flex min-w-0 flex-col gap-2" aria-label="Proposed text">
           <h3 className="text-xs font-medium text-success-foreground">
-            After · Option {String.fromCharCode(65 + choice)}
+            After · Option {optionLetter(choice)}
           </h3>
           <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-base leading-relaxed wrap-anywhere">
             <TypesetText latex={option.latex} />
@@ -207,7 +208,7 @@ export function ProposalCard({
         <Button
           size="xs"
           variant="ghost"
-          disabled={!canResolve || busy || current.status !== "pending"}
+          disabled={!actionable}
           onClick={() => void submit({ type: "dismiss" })}
         >
           Dismiss
@@ -215,11 +216,11 @@ export function ProposalCard({
         <Button
           size="xs"
           variant="secondary"
-          disabled={!canResolve || busy || current.status !== "pending"}
+          disabled={!actionable}
           onClick={() => void submit({ type: "apply", optionIndex: selected })}
         >
           <Check />
-          Apply option {String.fromCharCode(65 + choice)}
+          Apply option {optionLetter(choice)}
         </Button>
       </div>
       <PaperReplyInput value={feedback} onChange={setFeedback} onSubmit={reply} />

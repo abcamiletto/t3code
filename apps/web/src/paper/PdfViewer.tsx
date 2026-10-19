@@ -49,6 +49,9 @@ function DocumentLayer({
   context: PaperViewerContext;
 }) {
   const pages = visiblePages(layout, scrollTop, height);
+  const reviewable = context.proposals.filter(
+    (proposal) => proposal.status === "pending" || proposal.id === context.reveal?.proposalId,
+  );
   const [review, setReview] = useState({
     request: context.reveal,
     proposalId: context.reveal?.proposalId,
@@ -97,17 +100,15 @@ function DocumentLayer({
               const bounds = event.currentTarget.getBoundingClientRect();
               const x = (event.clientX - bounds.left) / page.scale;
               const y = (event.clientY - bounds.top) / page.scale;
-              const proposal = context.proposals.find(
-                (proposal) =>
-                  (proposal.status === "pending" || proposal.id === context.reveal?.proposalId) &&
-                  proposal.boxes.some(
-                    (box) =>
-                      box.page === index + 1 &&
-                      x >= box.x &&
-                      x <= box.x + box.width &&
-                      y >= box.y &&
-                      y <= box.y + box.height,
-                  ),
+              const proposal = reviewable.find((proposal) =>
+                proposal.boxes.some(
+                  (box) =>
+                    box.page === index + 1 &&
+                    x >= box.x &&
+                    x <= box.x + box.width &&
+                    y >= box.y &&
+                    y <= box.y + box.height,
+                ),
               );
               if (proposal) setReview({ ...review, proposalId: proposal.id, page: index + 1 });
             }}
@@ -135,13 +136,8 @@ function DocumentLayer({
                       }}
                     />
                   ))}
-                {context.proposals
-                  .filter(
-                    (proposal) =>
-                      (proposal.status === "pending" ||
-                        proposal.id === context.reveal?.proposalId) &&
-                      proposal.boxes.some((box) => box.page === index + 1),
-                  )
+                {reviewable
+                  .filter((proposal) => proposal.boxes.some((box) => box.page === index + 1))
                   .map((proposal) => (
                     <ProposalOverlay
                       key={proposal.id}
