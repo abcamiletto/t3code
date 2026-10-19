@@ -1,5 +1,5 @@
 import type { PaperProposal, ScopedThreadRef } from "@t3tools/contracts";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
 import type { DraftId } from "~/composerDraftStore";
@@ -12,7 +12,8 @@ export function ProposalOverlay({
   threadRef,
   cwd,
   composerDraftTarget,
-  revealed,
+  open,
+  onOpenChange,
 }: {
   proposal: PaperProposal;
   page: number;
@@ -20,14 +21,14 @@ export function ProposalOverlay({
   threadRef: ScopedThreadRef;
   cwd: string;
   composerDraftTarget: ScopedThreadRef | DraftId;
-  revealed: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(revealed);
   const anchor = useRef<HTMLDivElement>(null);
   const boxes = proposal.boxes.filter((box) => box.page === page);
   const first = boxes[0]!;
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       {boxes.map((box, index) => (
         <div
           ref={index === boxes.length - 1 ? anchor : undefined}
@@ -45,13 +46,17 @@ export function ProposalOverlay({
           }}
         />
       ))}
-      <div className="absolute -right-7 z-20" style={{ top: first.y * scale }}>
+      <div className="absolute right-2 z-20" style={{ top: first.y * scale }}>
         <PopoverTrigger
           render={
-            <Button size="micro" variant="outline" aria-label={proposal.summary ?? "Proposal"} />
+            <Button
+              size="micro"
+              variant="outline"
+              aria-label={`Review proposed change: ${proposal.summary ?? "Proposal"}`}
+            />
           }
         >
-          {proposal.options.length}
+          {proposal.status === "pending" ? "Review change" : "View change"}
         </PopoverTrigger>
       </div>
       <PopoverPopup
@@ -68,7 +73,7 @@ export function ProposalOverlay({
           cwd={cwd}
           composerDraftTarget={composerDraftTarget}
           showLocation={false}
-          onClose={() => setOpen(false)}
+          onClose={() => onOpenChange(false)}
         />
       </PopoverPopup>
     </Popover>
