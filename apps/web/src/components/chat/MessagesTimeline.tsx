@@ -1,6 +1,6 @@
 import { useRenderedAppearance } from "../../hooks/useTheme";
 import type { Root, RootContent } from "mdast";
-import { PaperProposalTimelineRow } from "~/paper/PaperProposalTimelineRow";
+import { PaperProposal } from "~/paper/PaperProposal";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
 import { shallow } from "zustand/vanilla/shallow";
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
@@ -2878,7 +2878,7 @@ function ProposedPlanTimelineRow({
 
 function PaperTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "paper-proposal" }> }) {
   const { threadRef } = use(TimelineRowCtx);
-  return <PaperProposalTimelineRow row={row} threadRef={threadRef} />;
+  return <PaperProposal reference={row.paperProposal} threadRef={threadRef} />;
 }
 
 function HtmlRenderTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "html-render" }> }) {

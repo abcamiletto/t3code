@@ -14,6 +14,7 @@ import * as ProcessRunner from "../processRunner.ts";
 import { PaperToolkit } from "../mcp/toolkits/paper/tools.ts";
 import * as PaperMcpService from "./PaperMcpService.ts";
 import * as PaperService from "./PaperService.ts";
+import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
 
 const encodeStatus = Schema.encodeEffect(PaperToolkit.tools.paper_status.successSchema);
 const decodeProposal = Schema.decodeEffect(PaperToolkit.tools.paper_propose_edits.parametersSchema);
@@ -87,6 +88,9 @@ it.effect(
               return yield* mcp.propose(threadId, input);
             }),
         );
+        expect(ProposalLinks.inlinePaperProposalReferences(proposals[0]!.markdown)).toEqual([
+          proposals[0]!.paperProposal,
+        ]);
         for (const { paperProposal } of proposals.slice(1, 7).toReversed()) {
           yield* paper.resolve({
             cwd,
