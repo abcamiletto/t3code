@@ -58,14 +58,18 @@ const PaperStatusTool = Tool.make("paper_status", {
 
 const PaperProposeEditsTool = Tool.make("paper_propose_edits", {
   description:
-    "Offer a reviewable LaTeX change when the user asks for a preview or alternatives, or a rewrite needs a meaningful choice. Apply clear, specific requests directly with normal file-editing tools, then check paper_status; obvious corrections do not need proposal approval. Provide 1–4 replacement options with short notes; one option is enough for a single suggested change. Do not invent alternatives to fill a quota. Multiple options appear as A, B, C, D. Use the smallest self-contained exact original span occurring once in the workspace-relative file. The original and every replacement must have balanced braces and complete math boundaries: include both dollar signs, both inline or display delimiters, or the matching begin/end environment tags. If an edit touches part of a formula, include the whole enclosing formula or math environment in both original and replacements, preserving unchanged content. The preview does not infer missing boundaries. When proposing, leave that span unchanged until the user applies an option. Applied proposals are already written to disk: read the current source and paper_status before making further edits.",
+    "Offer 1–4 LaTeX options as an interactive card inside your reply. Use proposals for requested previews or meaningful choices; apply clear, specific requests directly, then check paper_status. One option is enough for a single suggestion. After each call, put its returned markdown in a standalone paragraph exactly where that proposal belongs in your reply. Multiple proposals can appear between short explanations. The card already shows the options, notes, Apply, and Reply: do not repeat them in prose or add a long recap. Keep each note to one short sentence. Use the smallest self-contained exact original occurring once in the workspace-relative file. Original and replacements must have balanced braces and complete math boundaries. When changing part of a formula, include the whole enclosing formula or math environment, with both delimiters or matching begin/end tags and unchanged content preserved. Leave the original unchanged until the user applies an option. Applied options are already saved; read current source and paper_status before further edits.",
   parameters: Schema.Struct({
     file: Schema.String,
     original: Schema.String.check(Schema.isMinLength(1)),
     options: Schema.Array(PaperProposalOption).check(Schema.isMinLength(1), Schema.isMaxLength(4)),
     summary: Schema.optionalKey(Schema.String),
   }),
-  success: Schema.Struct({ paperProposal: PaperProposalReference, message: Schema.String }),
+  success: Schema.Struct({
+    paperProposal: PaperProposalReference,
+    markdown: Schema.String,
+    message: Schema.String,
+  }),
   failure: OrchestratorMcpFailure,
   failureMode: "return",
   dependencies,

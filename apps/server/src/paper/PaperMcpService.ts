@@ -10,6 +10,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
 
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
@@ -43,7 +44,7 @@ export class PaperMcpService extends Context.Service<
       threadId: ThreadId,
       input: ProposalInput,
     ) => Effect.Effect<
-      { paperProposal: PaperProposalReference; message: string },
+      { paperProposal: PaperProposalReference; markdown: string; message: string },
       OrchestratorMcpFailure
     >;
   }
@@ -113,10 +114,12 @@ const make = Effect.gen(function* () {
         const proposal = yield* paper
           .propose({ ...workspace, ...input })
           .pipe(Effect.mapError(toFailure));
+        const reference = { cwd: workspace.cwd, proposalId: proposal.id };
         return {
-          paperProposal: { cwd: workspace.cwd, proposalId: proposal.id },
+          paperProposal: reference,
+          markdown: ProposalLinks.formatPaperProposalLink(reference),
           message:
-            "Proposed a change in the Paper panel. The user can apply it or reply with feedback in chat.",
+            "Put the returned markdown in its own paragraph (blank lines before and after), exactly where these options belong in your reply. It renders the interactive proposal card. Keep surrounding prose brief; do not repeat the options or describe where to find them.",
         };
       }),
   });

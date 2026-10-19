@@ -53,6 +53,9 @@ cannot be located in the current PDF, the proposal stays available in the chat.
 The popup shows the original and one selected alternative side by side. Switch options at the top;
 long passages scroll inside each text pane. Red marks the original; green marks the proposed text.
 
+Agents can also place interactive option cards directly in their replies, between short explanations.
+Choose and apply an option there, or use **View in PDF** to review the passage on the paper.
+
 Inline math and displayed equations render in the preview. If a command is unsupported, the preview
 shows an error and its LaTeX source. The compiled paper PDF remains the reference for final typesetting.
 

@@ -1,4 +1,4 @@
-import { PaperProposalTimelineRow } from "~/paper/PaperProposalTimelineRow";
+import { PaperProposal } from "~/paper/PaperProposal";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
 import { MarkdownFindContext } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
@@ -1384,5 +1384,5 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
 
 function PaperTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "paper-proposal" }> }) {
   const { threadRef } = use(TimelineRowCtx);
-  return <PaperProposalTimelineRow row={row} threadRef={threadRef} />;
+  return <PaperProposal reference={row.paperProposal} threadRef={threadRef} />;
 }
