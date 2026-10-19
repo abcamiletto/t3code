@@ -77,6 +77,7 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         const { cwd } = yield* callingWorkspace(threadId);
         const state = yield* paper.currentStatus(cwd).pipe(Effect.mapError(toFailure));
+        const proposals = state.proposals.filter((proposal) => proposal.threadId === threadId);
         return {
           mainFile: state.mainFile,
           buildStatus: state.build.status,
@@ -84,7 +85,7 @@ const make = Effect.gen(function* () {
             .sort((a, b) => Number(b.severity === "error") - Number(a.severity === "error"))
             .slice(0, 20),
           pdfPath: state.build.pdfPath,
-          proposals: state.proposals
+          proposals: proposals
             .filter((proposal) => proposal.status === "pending")
             .map(({ id, file, startLine, endLine, summary }) => ({
               id,
@@ -93,7 +94,7 @@ const make = Effect.gen(function* () {
               endLine,
               ...(summary === undefined ? {} : { summary }),
             })),
-          resolvedProposals: state.proposals
+          resolvedProposals: proposals
             .filter((proposal) => proposal.status !== "pending")
             .slice(-5)
             .toReversed()

@@ -501,7 +501,12 @@ const make = Effect.gen(function* () {
             const { paper: state } = yield* SubscriptionRef.get(entry.state);
             // A revised proposal for the same text replaces the one the user was replying to.
             const superseded = (candidate: PaperProposal) => {
-              if (candidate.status !== "pending" || candidate.file !== proposal.file) return false;
+              if (
+                candidate.status !== "pending" ||
+                candidate.file !== proposal.file ||
+                candidate.threadId !== proposal.threadId
+              )
+                return false;
               const previous = originalRange(source, candidate.original);
               return (
                 previous !== undefined &&

@@ -29,6 +29,7 @@ export function SelectionComment({
       className="absolute z-30"
       style={{ left: editing ? selection.formLeft : selection.left, top: selection.top }}
       onPointerDown={(event) => event.stopPropagation()}
+      onKeyUp={(event) => event.stopPropagation()}
     >
       {editing ? (
         <div className="flex w-64 max-w-[calc(100vw-4rem)] flex-col gap-1 rounded-md border border-border bg-popover p-2 shadow-md">
