@@ -4,15 +4,16 @@ T3 Paper is T3 Code plus a live LaTeX paper workspace. It installs next to the o
 
 ## Staying current with upstream
 
-`main` mirrors `upstream/main`; `feat/paper` holds the fork's commits on top.
+`main` contains T3 Paper and its fixes. Merge upstream changes into it to keep the fork current.
 
 ```sh
-git fetch upstream
-git checkout main && git merge --ff-only upstream/main && git push origin main
-git checkout feat/paper && git rebase main
+git fetch https://github.com/pingdotgg/t3code.git main
+git switch main
+git merge FETCH_HEAD
+git push origin main
 ```
 
-Conflicts land in the small hooks listed below, never in fork-owned code.
+Upstream conflicts usually land in the small hooks listed below.
 
 ## Fork-owned code
 
