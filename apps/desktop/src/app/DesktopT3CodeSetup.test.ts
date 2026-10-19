@@ -16,10 +16,20 @@ import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as ElectronSafeStorage from "../electron/ElectronSafeStorage.ts";
 import { importSetup } from "./DesktopT3CodeSetup.ts";
 
-const { getPassword } = vi.hoisted(() => ({ getPassword: vi.fn<() => string | null>() }));
+const { getPassword } = vi.hoisted(() => ({
+  getPassword: vi.fn<(service: string, account: string) => string | null>(),
+}));
 vi.mock("@napi-rs/keyring", () => ({
   Entry: class {
-    getPassword = getPassword;
+    readonly service: string;
+    readonly account: string;
+    constructor(service: string, account: string) {
+      this.service = service;
+      this.account = account;
+    }
+    getPassword() {
+      return getPassword(this.service, this.account);
+    }
   },
 }));
 
@@ -70,7 +80,13 @@ const layerSafeStorage = Layer.succeed(ElectronSafeStorage.ElectronSafeStorage, 
   selectedStorageBackend: Effect.succeedNone,
 });
 
-beforeEach(() => getPassword.mockReset().mockReturnValue(secret));
+beforeEach(() => {
+  getPassword
+    .mockReset()
+    .mockImplementation((service, account) =>
+      service === "t3code Safe Storage" && account === "t3code" ? secret : null,
+    );
+});
 
 const withHome = <A, E, R>(
   effect: Effect.Effect<A, E, R | DesktopEnvironment.DesktopEnvironment>,
@@ -113,6 +129,72 @@ const setup = Effect.gen(function* () {
 });
 
 describe("existing T3 Code setup", () => {
+  it.effect("imports with the packaged key without prompting for unrelated older keys", () =>
+    withHome(
+      Effect.gen(function* () {
+        const { fs, path, environment, source } = yield* setup;
+        yield* fs.writeFileString(
+          path.join(source, "clerk-tokens.json"),
+          encodeJson({
+            __clerk_client_jwt: `enc:${officialEncryption("packaged-account-session")}`,
+          }),
+        );
+        getPassword.mockImplementation((service, account) => {
+          if (service === "t3code Safe Storage" && account === "t3code") return secret;
+          throw new Error(`User denied access to ${service}/${account}`);
+        });
+        yield* importSetup();
+        const tokens = decodeTokens(
+          yield* fs.readFileString(path.join(environment.stateDir, "clerk-tokens.json")),
+        );
+        assert.equal(
+          paperDecryption(tokens.__clerk_client_jwt!.slice(4)),
+          "packaged-account-session",
+        );
+      }),
+    ),
+  );
+
+  it.effect("falls back to the older displayed app name when the packaged key is absent", () =>
+    withHome(
+      Effect.gen(function* () {
+        const { fs, path, environment, source } = yield* setup;
+        yield* fs.writeFileString(
+          path.join(source, "clerk-tokens.json"),
+          encodeJson({
+            __clerk_client_jwt: `enc:${officialEncryption("older-account-session")}`,
+          }),
+        );
+        getPassword.mockImplementation((service, account) =>
+          service === "T3 Code Safe Storage" && account === "T3 Code" ? secret : null,
+        );
+        yield* importSetup();
+        const tokens = decodeTokens(
+          yield* fs.readFileString(path.join(environment.stateDir, "clerk-tokens.json")),
+        );
+        assert.equal(paperDecryption(tokens.__clerk_client_jwt!.slice(4)), "older-account-session");
+      }),
+    ),
+  );
+
+  it.effect("distinguishes a missing Keychain entry from denied access", () =>
+    withHome(
+      Effect.gen(function* () {
+        const { fs, path, environment, source } = yield* setup;
+        yield* fs.writeFileString(
+          path.join(source, "clerk-tokens.json"),
+          encodeJson({
+            __clerk_client_jwt: `enc:${officialEncryption("account-session")}`,
+          }),
+        );
+        getPassword.mockReturnValue(null);
+        const error = yield* importSetup().pipe(Effect.flip);
+        assert.equal(error.message, "No saved T3 Code Keychain entry was found.");
+        assert.isFalse(yield* fs.exists(path.join(environment.stateDir, "t3code-setup-imported")));
+      }),
+    ),
+  );
+
   it.effect(
     "imports the account and machine connections without touching the official install",
     () =>
