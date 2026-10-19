@@ -26,13 +26,6 @@ export function viewportToPdf(point: Point, viewport: ViewportRect, page: PageSi
   };
 }
 
-export function pdfToViewport(point: Point, viewport: ViewportRect, page: PageSize): Point {
-  return {
-    x: viewport.left + (point.x * viewport.width) / page.width,
-    y: viewport.top + (point.y * viewport.height) / page.height,
-  };
-}
-
 export function layoutPages(pages: readonly PageSize[], width: number, zoom: number): PageLayout[] {
   let top = 16;
   return pages.map((page) => {

@@ -2,18 +2,16 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   captureScrollAnchor,
   layoutPages,
-  pdfToViewport,
   restoreScrollAnchor,
   viewportToPdf,
   visiblePages,
 } from "./geometry";
 
 describe("PDF points", () => {
-  it("uses a top-left origin and round trips a scaled, scrolled viewport", () => {
+  it("uses a top-left origin in a scaled, scrolled viewport", () => {
     const viewport = { left: 120, top: -300, width: 918, height: 1188 };
     const page = { width: 612, height: 792 };
     expect(viewportToPdf({ x: 273, y: -3 }, viewport, page)).toEqual({ x: 102, y: 198 });
-    expect(pdfToViewport({ x: 102, y: 198 }, viewport, page)).toEqual({ x: 273, y: -3 });
   });
 });
 
