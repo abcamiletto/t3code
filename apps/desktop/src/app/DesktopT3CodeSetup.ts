@@ -34,7 +34,7 @@ const SettingsJson = Schema.fromJsonString(SettingsRecord);
 const decodeSettings = Schema.decodeEffect(SettingsJson);
 const decodeSettingsRecord = Schema.decodeUnknownEffect(SettingsRecord);
 const encodeSettings = Schema.encodeEffect(SettingsJson);
-const KEYCHAIN_NAMES = [
+const KEYCHAIN_ENTRIES = [
   // Electron captures the staged package name before asynchronous startup sets the visible name.
   "t3code",
   "T3 Code Beta",
@@ -42,7 +42,10 @@ const KEYCHAIN_NAMES = [
   "T3 Code",
   "T3 Code (Alpha)",
   "T3 Code (Beta)",
-];
+].flatMap((name) => [
+  { service: `${name} Safe Storage`, account: `${name} Key` },
+  { service: `${name} Safe Storage`, account: name },
+]);
 const MARKER = "t3code-setup-imported";
 
 class T3CodeSetupImportError extends Schema.TaggedError<T3CodeSetupImportError>()(
@@ -81,12 +84,12 @@ export const importSetup = Effect.fn("desktop.t3CodeSetup.import")(function* () 
         () => Effect.succeed(null),
       ),
     );
-  const keys = yield* Effect.forEach(KEYCHAIN_NAMES, (name) =>
+  const keys = yield* Effect.forEach(KEYCHAIN_ENTRIES, ({ service, account }) =>
     Effect.cached(
       resolveChromiumKeys({
         platform: "darwin",
-        keychainService: `${name} Safe Storage`,
-        keychainAccount: name,
+        keychainService: service,
+        keychainAccount: account,
         linuxSecretApplication: undefined,
       }).pipe(
         Effect.catchIf(

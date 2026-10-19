@@ -314,7 +314,10 @@ const startup = Effect.gen(function* () {
     Effect.withSpan("desktop.electron.whenReady"),
     Effect.catchCause((cause) => fatalStartupCause("whenReady", cause)),
   );
-  yield* logStartupInfo("app ready");
+  yield* logStartupInfo("app ready", {
+    appVersion: environment.appVersion,
+    appPath: environment.appPath,
+  });
   const importedSetup = yield* DesktopT3CodeSetup.importSetup().pipe(
     Effect.catch((error) =>
       logStartupError("Could not import the existing T3 Code setup", {
