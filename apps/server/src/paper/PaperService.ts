@@ -57,8 +57,7 @@ export class PaperService extends Context.Service<
 const StoredProposals = Schema.fromJsonString(Schema.Array(PaperProposal));
 const decodeProposals = Schema.decodeEffect(StoredProposals);
 const encodeProposals = Schema.encodeEffect(StoredProposals);
-const watchedExtension =
-  /(?:\.(?:tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|svg|webp|gif|tiff?)|(?:^|[/\\])\.?latexmkrc)$/i;
+const watchedExtension = /\.(?:tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|svg|webp|gif|tiff?)$/i;
 const ignoredDirectory = /(?:^|[/\\])(?:\.t3-paper|\.git|node_modules)(?:[/\\]|$)/;
 
 const make = Effect.gen(function* () {
@@ -286,15 +285,14 @@ const make = Effect.gen(function* () {
       yield* io(fs.makeDirectory(staging));
       const result = yield* runner
         .run({
-          command: "latexmk",
+          command: "tectonic",
           args: [
-            // Keep a configured engine; default to pdfLaTeX rather than changing the document's fonts.
-            "-e",
-            "$pdf_mode ||= 1;",
-            "-synctex=1",
-            "-interaction=nonstopmode",
-            "-file-line-error",
-            `-outdir=${staging}`,
+            "-X",
+            "compile",
+            "--synctex",
+            "--keep-logs",
+            "--outdir",
+            staging,
             detected.mainFile,
           ],
           cwd,
@@ -319,7 +317,7 @@ const make = Effect.gen(function* () {
       const stem = path.basename(detected.mainFile, ".tex");
       const log = yield* readOptional(path.join(staging, `${stem}.log`));
       if (log !== null) yield* io(fs.writeFileString(path.join(output, `${stem}.log`), log));
-      // latexmk's earlier passes can warn about references that its final pass resolves.
+      // Earlier passes can warn about references that the final pass resolves.
       const diagnosticOutput =
         result.code === 0 && log !== null
           ? log

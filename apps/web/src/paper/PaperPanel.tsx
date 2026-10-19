@@ -77,7 +77,7 @@ function PaperEmpty({ label, compiler = false }: { label: string; compiler?: boo
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-xs text-muted-foreground">
       <Icon className="size-5" />
       <span>{label}</span>
-      {compiler && <span>Install TeX Live (MacTeX on macOS) or MiKTeX with latexmk.</span>}
+      {compiler && <code className="select-all text-xs">brew install tectonic</code>}
     </div>
   );
 }

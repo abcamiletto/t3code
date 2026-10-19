@@ -11,7 +11,7 @@ import { IsoDateTime, NonNegativeInt, PositiveInt, TrimmedNonEmptyString } from 
 const PAPER_FAILURE_MESSAGES = {
   not_latex: "This workspace has no LaTeX document.",
   compiler_missing:
-    "latexmk is not installed. Install TeX Live (MacTeX on macOS) or MiKTeX with latexmk on the machine that owns this project.",
+    "Tectonic is not installed. Install it with `brew install tectonic` on the machine that owns this project.",
   workspace_unavailable: "This workspace is not available.",
   proposal_not_found: "This proposal no longer exists.",
   proposal_resolved: "This proposal was already resolved.",
