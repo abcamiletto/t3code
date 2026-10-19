@@ -36,6 +36,8 @@ Select text in the PDF and click the comment button. The comment is added to you
 the matching `.tex` lines, the same way a code review comment is. Send it to ask the agent for
 changes.
 
+Yellow highlights mark comments in your message draft. Removing a comment removes its highlight.
+
 Each comment includes the exact PDF text you selected as well as the matching source context,
 so short instructions such as "delete this part" retain their target.
 

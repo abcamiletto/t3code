@@ -38,7 +38,7 @@ function PaperPdf({
   state: PaperState;
   zoom: number;
   onPageChange: (page: number, count: number) => void;
-  onComment: (selection: PaperSelection, comment: string) => Promise<boolean>;
+  onComment: (selection: PaperSelection, comment: string) => Promise<string | null>;
   reveal: { proposalId: string; requestId: number } | undefined;
 }) {
   const resource =
@@ -116,21 +116,18 @@ export default function PaperPanel(context: PanelContext) {
     });
     if (result._tag === "Failure") {
       setError(formatEnvironmentQueryError(result.cause));
-      return false;
+      return null;
     }
     const range = result.value;
-    addComment(
-      composerDraftTarget,
-      paperReviewComment(
-        range,
-        PAPER_SECTIONS.comment,
-        `${text.trim()}\n\nSelected PDF text (page ${selection.page}):\n${selection.text}`,
-        range.source,
-      ),
-      { insertAtCaret: false },
+    const reviewComment = paperReviewComment(
+      range,
+      PAPER_SECTIONS.comment,
+      `${text.trim()}\n\nSelected PDF text (page ${selection.page}):\n${selection.text}`,
+      range.source,
     );
+    addComment(composerDraftTarget, reviewComment, { insertAtCaret: false });
     setError(null);
-    return true;
+    return reviewComment.id;
   };
   if (!query.data) return <PaperEmpty label={query.error ?? "Paper"} />;
   // The PDF is shared by the workspace; proposals belong to the active chat.
