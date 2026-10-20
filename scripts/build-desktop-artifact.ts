@@ -3843,7 +3843,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   // as enabled, so copy the host env and scrub empty values instead of relying
   // on `extendEnv` merging.
   const buildEnv: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...loadRepoEnv({ repoRoot }),
   };
   buildEnv.npm_config_user_agent = resolvePackageManagerUserAgent(rootPackageJson.packageManager);
   for (const [key, value] of Object.entries(buildEnv)) {
