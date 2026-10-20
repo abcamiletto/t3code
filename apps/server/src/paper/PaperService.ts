@@ -58,7 +58,7 @@ const StoredProposals = Schema.fromJsonString(Schema.Array(PaperProposal));
 const decodeProposals = Schema.decodeEffect(StoredProposals);
 const encodeProposals = Schema.encodeEffect(StoredProposals);
 const watchedExtension = /\.(?:tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|svg|webp|gif|tiff?)$/i;
-const ignoredDirectory = /(?:^|[/\\])(?:\.t3-paper|\.git|node_modules)(?:[/\\]|$)/;
+const ignoredDirectory = /(?:^|[/\\])(?:\.t3-paper|\.git|node_modules|build)(?:[/\\]|$)/;
 
 const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
@@ -280,21 +280,18 @@ const make = Effect.gen(function* () {
       if (detected.mainFile === null) return yield* new PaperError({ reason: "not_latex" });
       yield* prepare(cwd);
       const output = path.join(cwd, ".t3-paper", "build");
-      const staging = path.join(output, ".next");
+      const stem = path.basename(detected.mainFile, ".tex");
+      const configured = yield* io(fs.exists(path.join(cwd, "Tectonic.toml")));
+      const staging = configured ? path.join(cwd, "build", stem) : path.join(output, ".next");
       yield* io(fs.remove(staging, { recursive: true, force: true }));
-      yield* io(fs.makeDirectory(staging));
+      yield* io(fs.makeDirectory(staging, { recursive: true }));
+      const args = configured
+        ? ["-X", "build", "--keep-logs", "--target", stem]
+        : ["-X", "compile", "--synctex", "--keep-logs", "--outdir", staging, detected.mainFile];
       const result = yield* runner
         .run({
           command: "tectonic",
-          args: [
-            "-X",
-            "compile",
-            "--synctex",
-            "--keep-logs",
-            "--outdir",
-            staging,
-            detected.mainFile,
-          ],
+          args,
           cwd,
           timeout: "2 minutes",
           maxOutputBytes: 2_000_000,
@@ -314,7 +311,6 @@ const make = Effect.gen(function* () {
               }),
           ),
         );
-      const stem = path.basename(detected.mainFile, ".tex");
       const log = yield* readOptional(path.join(staging, `${stem}.log`));
       if (log !== null) yield* io(fs.writeFileString(path.join(output, `${stem}.log`), log));
       // Earlier passes can warn about references that the final pass resolves.
@@ -421,7 +417,9 @@ const make = Effect.gen(function* () {
       } = yield* SubscriptionRef.get(entry.state);
       entry.watcher = yield* fs.watch(cwd, { recursive: true }).pipe(
         Stream.filter(
-          (event) => !ignoredDirectory.test(event.path) && watchedExtension.test(event.path),
+          (event) =>
+            !ignoredDirectory.test(event.path) &&
+            (watchedExtension.test(event.path) || path.basename(event.path) === "Tectonic.toml"),
         ),
         Stream.debounce("300 millis"),
         Stream.runForEach(() => requestBuild(entry)),
