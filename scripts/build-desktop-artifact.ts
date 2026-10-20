@@ -3870,7 +3870,8 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
       : undefined;
   const stagePackageJson: StagePackageJson = {
-    name: "t3code",
+    // Electron derives its macOS Keychain identity from the initial package name.
+    name: forkIdentity.slug,
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,
