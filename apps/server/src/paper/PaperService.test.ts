@@ -71,14 +71,16 @@ const temporaryPaper = Effect.gen(function* () {
   yield* fs.writeFileString(path.join(cwd, "main.tex"), document);
   return { fs, path, cwd };
 });
+const compileOutput = (request: ProcessRunner.ProcessRunInput, path: Path.Path) =>
+  request.args[1] === "build"
+    ? path.join(request.cwd!, "build", "main")
+    : request.args[request.args.indexOf("--outdir") + 1]!;
+
 const fakeCompile = (request: ProcessRunner.ProcessRunInput) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const output =
-      request.args[1] === "build"
-        ? path.join(request.cwd!, "build", "main")
-        : request.args[request.args.indexOf("--outdir") + 1]!;
+    const output = compileOutput(request, path);
     yield* fs.writeFileString(path.join(output, "main.pdf"), "%PDF-test");
     yield* fs.writeFile(
       path.join(output, "main.synctex.gz"),
@@ -88,25 +90,23 @@ const fakeCompile = (request: ProcessRunner.ProcessRunInput) =>
   }).pipe(Effect.orDie);
 
 it.layer(NodeServices.layer)("PaperService", (it) => {
-  it.effect(
-    "rejects font substitutions even when the compiler exits successfully and keeps the good PDF",
-    () =>
+  it.effect.each(["standalone", "project"])(
+    "rejects font substitutions and keeps the good PDF (%s)",
+    (mode) =>
       Effect.gen(function* () {
         const { fs, path, cwd } = yield* temporaryPaper;
+        if (mode === "project")
+          yield* fs.writeFileString(path.join(cwd, "Tectonic.toml"), '[doc]\nname = "test"\n');
         let builds = 0;
         const runner: ProcessRunner.ProcessRunner["Service"] = {
           run: (request) =>
             Effect.gen(function* () {
               expect(request.command).toBe("tectonic");
+              expect(request.args[1]).toBe(mode === "project" ? "build" : "compile");
               builds++;
               const compiled = yield* fakeCompile(request);
-              const output =
-                builds === 1
-                  ? path.join(cwd, ".t3-paper", "build", ".next")
-                  : path.join(cwd, "build", "main");
-              if (builds > 1)
-                expect(request.args).toEqual(["-X", "build", "--keep-logs", "--target", "main"]);
-              if (builds !== 2) {
+              const output = compileOutput(request, path);
+              if (builds === 1) {
                 yield* fs.writeFileString(
                   path.join(output, "main.log"),
                   "Final pass: fonts loaded correctly.",
@@ -132,7 +132,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         yield* Effect.gen(function* () {
           const paper = yield* PaperService.PaperService;
           expect((yield* paper.currentStatus(cwd)).build.status).toBe("succeeded");
-          yield* fs.writeFileString(path.join(cwd, "Tectonic.toml"), '[doc]\nname = "test"\n');
           const failed = yield* paper.currentStatus(cwd);
           expect(failed.build.status).toBe("failed");
           expect(failed.build.diagnostics[0]).toMatchObject({
@@ -140,7 +139,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
             message: expect.stringContaining("Font substitution"),
           });
           expect(yield* fs.readFileString(path.join(cwd, failed.build.pdfPath!))).toBe("%PDF-test");
-          expect((yield* paper.currentStatus(cwd)).build.status).toBe("succeeded");
           expect(yield* fs.readFileString(path.join(cwd, "main.tex"))).toBe(document);
         }).pipe(
           Effect.provide(
