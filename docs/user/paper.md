@@ -20,15 +20,14 @@ PDF/source navigation uses the standard `synctex` command from TeX Live (MacTeX 
 macOS) or MiKTeX. Install it on the machine that owns the project. PDF viewing and chat proposals
 remain available without it.
 
-## Use your existing T3 Code machines
+## Your Paper workspace
 
-On macOS, Paper picks up the account and saved machine connections from a standard T3 Code
-installation. Allow Keychain access if macOS asks. Work in the same connected machine in both
-apps to see the same projects and chats. Paper starts with its own local environment disabled
-after importing; you can enable it in Settings → Connections if you need a separate local workspace.
+Paper keeps its own projects, chats, settings and credentials. It does not import T3 Code's
+account or connections, or access its Keychain items. The local Paper server stores its data
+in `~/.t3-paper`, separately from T3 Code.
 
-PDF builds and paper proposals require the T3 Paper server on the machine that owns the project.
-Connecting to a standard T3 Code server shares its chats but does not add the paper tools there.
+To work on another machine, add its Paper server in Settings → Connections.
+PDF builds and paper proposals run on the machine that owns the project.
 
 ## Comment on the paper
 
