@@ -68,7 +68,12 @@ describe("live paper proposals", () => {
     const next = newLivePaperProposal(new Set(), [proposal("live")], threadRef.threadId);
     expect(next?.id).toBe("live");
     expect(
-      store.openProactive(threadRef, { id: "paper", kind: "paper" }, choice.userActionRevision),
+      store.openProactive(
+        threadRef,
+        { id: "paper", kind: "paper" },
+        choice.userActionRevision,
+        true,
+      ),
     ).toBe(true);
     expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef)).toBe(
       "paper",
@@ -80,7 +85,12 @@ describe("live paper proposals", () => {
       userActionRevision: revision,
     });
     expect(
-      store.openProactive(threadRef, { id: "paper", kind: "paper" }, later.userActionRevision),
+      store.openProactive(
+        threadRef,
+        { id: "paper", kind: "paper" },
+        later.userActionRevision,
+        true,
+      ),
     ).toBe(false);
     expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef)).toBe(
       "files",
@@ -91,7 +101,12 @@ describe("live paper proposals", () => {
       userActionRevision: revision,
     });
     expect(
-      store.openProactive(threadRef, { id: "paper", kind: "paper" }, nextRun.userActionRevision),
+      store.openProactive(
+        threadRef,
+        { id: "paper", kind: "paper" },
+        nextRun.userActionRevision,
+        true,
+      ),
     ).toBe(true);
   });
 });
