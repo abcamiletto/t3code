@@ -30,7 +30,6 @@ import * as DesktopServerExposure from "../backend/DesktopServerExposure.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 import * as DesktopState from "./DesktopState.ts";
-import * as DesktopT3CodeSetup from "./DesktopT3CodeSetup.ts";
 import * as DesktopRemoteUpdates from "../updates/DesktopRemoteUpdates.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
@@ -318,28 +317,6 @@ const startup = Effect.gen(function* () {
     appVersion: environment.appVersion,
     appPath: environment.appPath,
   });
-  const importedSetup = yield* DesktopT3CodeSetup.importSetup().pipe(
-    Effect.catch((error) =>
-      logStartupError("Could not import the existing T3 Code setup", {
-        error: error._tag,
-        detail:
-          error._tag === "T3CodeSetupImportError"
-            ? error.message
-            : error._tag === "ChromiumKeyError"
-              ? error.reason
-              : undefined,
-      }),
-    ),
-  );
-  if (importedSetup) {
-    yield* desktopSettings.setLocalEnvironmentEnabled(false).pipe(
-      Effect.catch((error) =>
-        logStartupError("Could not disable Paper's separate local environment", {
-          error: error._tag,
-        }),
-      ),
-    );
-  }
   if (environment.platform === "linux") {
     const selectedBackend = yield* safeStorage.selectedStorageBackend;
     yield* logStartupInfo("safe storage ready", {
