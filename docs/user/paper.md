@@ -15,9 +15,14 @@ Build output goes to `.t3-paper/`, which ignores itself in Git.
 Paper honors a root `Tectonic.toml` and builds the output named after the main file (`main` for
 `main.tex`). Enable `synctex = true` in that output for PDF/source navigation. Ignore `build/` in Git.
 Compiler settings belong in this configuration; conference templates can stay unchanged.
-For legacy Times templates such as CVPR, use a build-only input before the unchanged document:
+For legacy Times templates such as CVPR, this configuration keeps the template unchanged:
 
 ```toml
+[doc]
+name = "paper"
+bundle = "https://data1b.fullyjustified.net/tlextras-2022.0r0.tar"
+extra_paths = ["."]
+
 [[output]]
 name = "main"
 type = "pdf"
@@ -25,7 +30,6 @@ synctex = true
 inputs = [{ inline = '\RequirePackage[OT1]{fontenc}\input{main.tex}' }]
 ```
 
-Set `extra_paths = ["."]` in `[doc]` when the sources are in the project root rather than `src/`.
 For Unicode fonts, follow [Tectonic's font setup](https://tectonic-typesetting.github.io/book/latest/getting-started/unicode.html).
 
 PDF/source navigation uses the standard `synctex` command from TeX Live (MacTeX or BasicTeX on
