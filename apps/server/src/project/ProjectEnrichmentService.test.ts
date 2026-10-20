@@ -52,6 +52,7 @@ it.effect("preserves the real favicon path for LaTeX projects", () =>
         resolve: () => Effect.succeed(null),
       }),
       Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
+        invalidate: () => Effect.void,
         resolvePath: (cwd) =>
           cwd === "/next"
             ? Deferred.succeed(nextFaviconStarted, undefined).pipe(Effect.as(null))

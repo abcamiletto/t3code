@@ -42,7 +42,12 @@ export function PaperLiveProposals({
     if (
       enabled &&
       proposal &&
-      panels.openProactive(threadRef, { id: "paper", kind: "paper" }, choice.userActionRevision)
+      panels.openProactive(
+        threadRef,
+        { id: "paper", kind: "paper" },
+        choice.userActionRevision,
+        true,
+      )
     ) {
       revealPaperProposal(threadRef, proposal.id);
     }
