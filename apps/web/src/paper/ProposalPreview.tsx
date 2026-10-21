@@ -8,7 +8,7 @@ import { paperEnvironment } from "./state";
 
 const scale = 1.6;
 
-export function TypesetText({
+export function ProposalPreview({
   latex,
   environmentId,
   cwd,
@@ -23,8 +23,10 @@ export function TypesetText({
   optionIndex: number | null;
   revision: number;
 }) {
-  const [loaded, setLoaded] = useState<{ source: string; document: PaperDocument } | null>(null);
-  const [failure, setFailure] = useState<{ source: string; message: string } | null>(null);
+  const [preview, setPreview] = useState<
+    | ({ source: string; updatedAt: number } & ({ document: PaperDocument } | { error: string }))
+    | null
+  >(null);
   const query = useEnvironmentQuery(
     latex.trim()
       ? paperEnvironment.preview({
@@ -34,6 +36,7 @@ export function TypesetText({
       : null,
   );
   const source = query.data?.pdf ?? null;
+  const updatedAt = query.dataUpdatedAt;
   useEffect(() => {
     if (source === null) return;
     const controller = new AbortController();
@@ -48,26 +51,27 @@ export function TypesetText({
           return;
         }
         document = pdf;
-        setLoaded({ source, document: pdf });
+        setPreview({ source, updatedAt, document: pdf });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
-          setFailure({
+          setPreview({
             source,
-            message: error instanceof Error ? error.message : "Could not display the preview PDF.",
+            updatedAt,
+            error: error instanceof Error ? error.message : "Could not display the preview PDF.",
           });
       });
     return () => {
       controller.abort();
       void document?.pdf.loadingTask.destroy();
     };
-  }, [source]);
+  }, [source, updatedAt]);
+  const current = preview?.source === source && preview.updatedAt === updatedAt ? preview : null;
   const errors = query.data?.diagnostics.filter((entry) => entry.severity === "error") ?? [];
   const error =
     query.error ??
     (errors.length > 0 ? errors.map((entry) => entry.message).join("\n") : null) ??
-    (failure?.source === source ? failure.message : null);
-  const document = loaded?.source === source ? loaded.document : null;
+    (current && "error" in current ? current.error : null);
   return (
     <div className="min-w-0">
       {!latex.trim() ? (
@@ -82,23 +86,24 @@ export function TypesetText({
             </Button>
           </div>
         </div>
-      ) : document ? (
+      ) : current && "document" in current ? (
         <div className="overflow-x-auto" aria-label="Compiled LaTeX preview">
-          {document.sizes.map((size, index) => (
+          {current.document.sizes.map((size, index) => (
             <div
-              key={`${document.id}:${index + 1}`}
+              key={`${current.document.id}:${index + 1}`}
               className="relative"
               style={{ width: size.width * scale, height: size.height * scale }}
             >
               <PdfPage
-                pdf={document.pdf}
+                pdf={current.document.pdf}
                 page={index + 1}
                 layout={{ width: size.width * scale, height: size.height * scale, scale, top: 0 }}
                 onReady={() => {}}
                 onError={(error) =>
-                  setFailure({
-                    source: source!,
-                    message:
+                  setPreview({
+                    source: current.source,
+                    updatedAt: current.updatedAt,
+                    error:
                       error instanceof Error ? error.message : "Could not render the preview PDF.",
                   })
                 }

@@ -45,20 +45,6 @@ export const compilePreview = Effect.fn("PaperService.compilePreview")(
         : yield* Effect.try(() => Toml.parse(configured)).pipe(
             Effect.flatMap(Schema.decodeUnknownEffect(Configuration)),
           );
-    const output = config?.output.find((output) => output.name === path.basename(mainFile, ".tex"));
-    if (config && !output) return yield* new PaperError({ reason: "preview_failed" });
-    const inputs =
-      output?.inputs ??
-      (output
-        ? [
-            output.preamble ?? "_preamble.tex",
-            output.index ?? "index.tex",
-            output.postamble ?? "_postamble.tex",
-          ]
-        : [path.join(cwd, mainFile)]);
-    const sources = (typeof inputs === "string" ? [inputs] : inputs).map((input) =>
-      typeof input === "string" ? path.resolve(cwd, "src", input) : input,
-    );
     // Run the original compiler inputs and packages, then replace only the document body.
     // preview.sty handles cropping; the TeX engine handles macros, conditionals and fonts.
     const hook = String.raw`\AddToHook{begindocument/before}{\RequirePackage[active,tightpage]{preview}}
@@ -69,6 +55,18 @@ ${latex}
 `;
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-paper-preview-" });
     if (config) {
+      const output = config.output.find(
+        (output) => output.name === path.basename(mainFile, ".tex"),
+      );
+      if (!output) return yield* new PaperError({ reason: "preview_failed" });
+      const inputs = output.inputs ?? [
+        output.preamble ?? "_preamble.tex",
+        output.index ?? "index.tex",
+        output.postamble ?? "_postamble.tex",
+      ];
+      const sources = (typeof inputs === "string" ? [inputs] : inputs).map((input) =>
+        typeof input === "string" ? path.resolve(cwd, "src", input) : input,
+      );
       const bundle = config.doc.bundle;
       const src = path.join(cwd, "src");
       yield* fs.makeDirectory(path.join(directory, "src"));
@@ -87,7 +85,7 @@ ${latex}
             {
               name: "preview",
               type: "pdf",
-              ...(output?.tex_format === undefined ? {} : { tex_format: output.tex_format }),
+              ...(output.tex_format === undefined ? {} : { tex_format: output.tex_format }),
               inputs: [{ inline: hook }, ...sources],
             },
           ],

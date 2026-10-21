@@ -8,7 +8,7 @@ import { Toggle, ToggleGroup } from "~/components/ui/toggle-group";
 import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
 import { dispatchSnapShotComposerFocus } from "~/lib/desktopSnapShot";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { TypesetText } from "./TypesetText";
+import { ProposalPreview } from "./ProposalPreview";
 import { PaperIconButton } from "./PaperIconButton";
 import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import { paperEnvironment } from "./state";
@@ -189,7 +189,7 @@ export function ProposalCard({
           <section className="flex min-w-0 flex-col gap-2" aria-label="Original text">
             <h3 className="text-xs font-medium text-destructive">Before</h3>
             <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-destructive/25 bg-destructive/5 p-3 text-base leading-relaxed wrap-anywhere">
-              <TypesetText latex={proposal.original} optionIndex={null} {...preview} />
+              <ProposalPreview latex={proposal.original} optionIndex={null} {...preview} />
             </div>
           </section>
         )}
@@ -198,7 +198,7 @@ export function ProposalCard({
             {multipleOptions ? `After · Option ${optionLetter(choice)}` : "After"}
           </h3>
           <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-base leading-relaxed wrap-anywhere">
-            <TypesetText latex={option.latex} optionIndex={choice} {...preview} />
+            <ProposalPreview latex={option.latex} optionIndex={choice} {...preview} />
           </div>
           {option.note && <p className="text-xs text-muted-foreground">{option.note}</p>}
         </section>
