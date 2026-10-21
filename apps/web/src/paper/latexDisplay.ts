@@ -18,15 +18,13 @@ const parser = LatexParser.getParser({ macros: standardMacros });
 
 export function latexToDisplay(latex: string, preamble = ""): DisplayNode[] {
   const definitions = LatexMacros.listNewcommands(parser.parse(preamble));
-  const projectParser =
-    definitions.length === 0
-      ? parser
-      : LatexParser.getParser({
-          macros: {
-            ...standardMacros,
-            ...Object.fromEntries(definitions.map(({ name, signature }) => [name, { signature }])),
-          },
-        });
+  if (definitions.length === 0) return displayNodes(parser.parse(latex).content);
+  const projectParser = LatexParser.getParser({
+    macros: {
+      ...standardMacros,
+      ...Object.fromEntries(definitions.map(({ name, signature }) => [name, { signature }])),
+    },
+  });
   for (let expansion = 0; expansion < 100; expansion++) {
     const tree = projectParser.parse(latex);
     const before = LatexSource.printRaw(tree);

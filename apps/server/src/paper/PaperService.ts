@@ -26,7 +26,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as ProcessRunner from "../processRunner.ts";
 import { parseDiagnostics } from "./diagnostics.ts";
 import { rootTexFiles } from "./project.ts";
-import { preambleItems } from "./preamble.ts";
+import { readPreviewContext } from "./preamble.ts";
 import { originalRange, refineSource } from "./source.ts";
 import { backwardSearch, forwardSearch } from "./synctex.ts";
 
@@ -126,45 +126,6 @@ const make = Effect.gen(function* () {
     }
     return { absolute, relative };
   });
-  const previewContext = Effect.fn("PaperService.previewContext")(function* (
-    cwd: string,
-    mainFile: string | null,
-  ) {
-    if (mainFile === null) return { preamble: "", error: null };
-    const visited = new Set<string>();
-    const load = Effect.fn("PaperService.loadPreamble")(function* (
-      name: string,
-    ): Effect.fn.Return<string, PaperError> {
-      const file = yield* sourceFile(cwd, name);
-      if (visited.has(file.absolute))
-        return yield* new PaperError({
-          reason: "io_failed",
-          cause: new Error(`Cyclic preamble input: ${name}`),
-        });
-      visited.add(file.absolute);
-      const source = yield* io(fs.readFileString(file.absolute));
-      const items = yield* io(Effect.try(() => preambleItems(source)));
-      const definitions: string[] = [];
-      for (const item of items) {
-        if (item.kind === "definition") definitions.push(item.source);
-        else
-          definitions.push(
-            yield* load(path.extname(item.source) ? item.source : `${item.source}.tex`),
-          );
-      }
-      visited.delete(file.absolute);
-      return definitions.join("\n");
-    });
-    return yield* load(mainFile).pipe(
-      Effect.map((preamble) => ({ preamble, error: null })),
-      Effect.catch((cause) =>
-        Effect.succeed({
-          preamble: "",
-          error: `Could not load project macro definitions: ${cause.message}`,
-        }),
-      ),
-    );
-  });
   const detect = Effect.fn("PaperService.detect")(function* (cwd: string) {
     const tex = yield* rootTexFiles(fs, cwd).pipe(
       Effect.mapError((cause) => new PaperError({ reason: "workspace_unavailable", cause })),
@@ -179,7 +140,13 @@ const make = Effect.gen(function* () {
     return {
       isLatex: tex.length > 0,
       mainFile,
-      preview: yield* previewContext(cwd, mainFile),
+      preview: yield* readPreviewContext(
+        mainFile,
+        Effect.fn("PaperService.readPreambleSource")(function* (name) {
+          const file = yield* sourceFile(cwd, path.extname(name) ? name : `${name}.tex`);
+          return { path: file.absolute, source: yield* io(fs.readFileString(file.absolute)) };
+        }),
+      ),
     };
   });
   const acquireWorkspace = Effect.fn("PaperService.acquireWorkspace")(function* (inputCwd: string) {
