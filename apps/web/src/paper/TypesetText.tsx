@@ -38,7 +38,10 @@ export function TypesetText({
     if (source === null) return;
     const controller = new AbortController();
     let document: PaperDocument | undefined;
-    void readPaperDocument(`data:application/pdf;base64,${source}`, controller.signal)
+    void readPaperDocument(
+      Uint8Array.from(atob(source), (character) => character.charCodeAt(0)),
+      controller.signal,
+    )
       .then((pdf) => {
         if (controller.signal.aborted) {
           void pdf.pdf.loadingTask.destroy();

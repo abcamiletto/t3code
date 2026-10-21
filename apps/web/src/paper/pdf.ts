@@ -10,8 +10,11 @@ export interface PaperDocument {
   sizes: PageSize[];
 }
 
-export async function readPaperDocument(url: string, signal: AbortSignal): Promise<PaperDocument> {
-  const task = getDocument({ url });
+export async function readPaperDocument(
+  source: string | Uint8Array,
+  signal: AbortSignal,
+): Promise<PaperDocument> {
+  const task = getDocument(typeof source === "string" ? { url: source } : { data: source });
   const abort = () => {
     void task.destroy();
   };
@@ -25,7 +28,7 @@ export async function readPaperDocument(url: string, signal: AbortSignal): Promi
         return { width: viewport.width, height: viewport.height };
       }),
     );
-    return { id: url, pdf, sizes };
+    return { id: typeof source === "string" ? source : pdf.fingerprints.join("-"), pdf, sizes };
   } catch (error) {
     await task.destroy();
     throw error;
