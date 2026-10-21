@@ -313,7 +313,10 @@ const startup = Effect.gen(function* () {
     Effect.withSpan("desktop.electron.whenReady"),
     Effect.catchCause((cause) => fatalStartupCause("whenReady", cause)),
   );
-  yield* logStartupInfo("app ready");
+  yield* logStartupInfo("app ready", {
+    appVersion: environment.appVersion,
+    appPath: environment.appPath,
+  });
   if (environment.platform === "linux") {
     const selectedBackend = yield* safeStorage.selectedStorageBackend;
     yield* logStartupInfo("safe storage ready", {
