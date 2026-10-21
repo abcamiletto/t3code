@@ -179,13 +179,15 @@ export const make = Effect.gen(function* () {
       };
       const resumeProviderAuth = (value: string | undefined) => {
         const destination = providerAuthReturnUrl(value);
-        const expectedOrigin = `${ElectronProtocol.getDesktopScheme(environment.isDevelopment)}://app`;
+        const expectedOrigin = `${ElectronProtocol.getDesktopLinkScheme(environment.isDevelopment)}://app`;
         if (!destination?.startsWith(`${expectedOrigin}/`)) return false;
         void runPromise(
           Effect.gen(function* () {
             const mainWindow = yield* electronWindow.currentMainOrFirst;
             if (Option.isNone(mainWindow)) return;
-            yield* Effect.promise(() => mainWindow.value.loadURL(destination));
+            const rendererOrigin = `${ElectronProtocol.getDesktopScheme(environment.isDevelopment)}://app`;
+            const rendererDestination = `${rendererOrigin}${destination.slice(expectedOrigin.length)}`;
+            yield* Effect.promise(() => mainWindow.value.loadURL(rendererDestination));
             yield* electronWindow.reveal(mainWindow.value);
           }).pipe(
             Effect.catchCause((cause) =>
