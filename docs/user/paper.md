@@ -74,8 +74,9 @@ long passages scroll inside each text pane. Red marks the original; green marks 
 Agents can also place interactive option cards directly in their replies, between short explanations.
 Choose and apply an option there, or use **View in PDF** to review the passage on the paper.
 
-Inline math and displayed equations render in the preview. If a command is unsupported, the preview
-shows an error and its LaTeX source. The compiled paper PDF remains the reference for final typesetting.
+Proposal previews are compiled by Tectonic with your project’s packages, macros and compiler settings.
+They keep the paper’s text width; scroll horizontally to inspect wider content. A compilation failure
+shows the error and LaTeX source. The full paper PDF remains the reference for final layout.
 
 - Click **Apply** to update the `.tex` file and rebuild the PDF. The proposal is marked applied;
   nothing is added to your message draft and no extra agent turn is needed.

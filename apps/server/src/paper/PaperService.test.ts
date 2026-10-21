@@ -391,23 +391,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       yield* fs.writeFileString(path.join(cwd, "fragment.tex"), "A section.");
       const paper = yield* PaperService.PaperService;
       expect((yield* paper.status(cwd)).mainFile).toBe("main.tex");
-      yield* fs.writeFileString(
-        path.join(cwd, "main.tex"),
-        document.replace("\\begin{document}", "\\input{preamble}\n\\begin{document}"),
-      );
-      yield* fs.writeFileString(
-        path.join(cwd, "preamble.tex"),
-        "\\input{notation}\n\\newcommand{\\R}{\\mathbf{R}}",
-      );
-      yield* fs.writeFileString(path.join(cwd, "notation.tex"), "\\newcommand{\\pp}{\\mathbf{p}}");
-      expect((yield* paper.status(cwd)).preview).toEqual({
-        preamble: "\\newcommand{\\pp}{\\mathbf{p}}\n\\newcommand{\\R}{\\mathbf{R}}",
-        error: null,
-      });
-      yield* fs.remove(path.join(cwd, "notation.tex"));
-      expect((yield* paper.status(cwd)).preview.error).toContain(
-        "Could not load project macro definitions",
-      );
       const other = yield* fs.makeTempDirectoryScoped();
       yield* fs.writeFileString(path.join(other, "z.tex"), "\\documentclass{book}");
       yield* fs.writeFileString(path.join(other, "a.tex"), "\\documentclass{article}");

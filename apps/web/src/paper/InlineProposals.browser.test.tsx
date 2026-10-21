@@ -1,8 +1,7 @@
 import { EnvironmentId, ThreadId, type PaperProposal } from "@t3tools/contracts";
 import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
 import { Atom } from "effect/reactivity";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { render } from "../../test/render";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import "../index.css";
@@ -14,7 +13,9 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock(import("../state/query"), async (original) => ({
   ...(await original()),
-  useEnvironmentQuery: (() => ({ data: { proposals: fixture.proposals } })) as never,
+  useEnvironmentQuery: (() => ({
+    data: { proposals: fixture.proposals, build: { revision: 0 }, pdf: null, diagnostics: [] },
+  })) as never,
 }));
 vi.mock(import("../state/use-atom-command"), async (original) => {
   const actual = await original();
@@ -68,66 +69,51 @@ it("places multiple option cards between paragraphs and applies the chosen optio
       appliedOptionIndex: input.resolution.optionIndex,
     },
   }));
-  const permission = vi
+  using _permission = vi
     .spyOn(paperEnvironment.resolveProposal, "permissionAtom")
     .mockReturnValue(Atom.make(true));
   const container = document.body.appendChild(document.createElement("div"));
   container.style.width = "600px";
-  const root = createRoot(container);
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  try {
-    const links = fixture.proposals.map((proposal) =>
-      ProposalLinks.formatPaperProposalLink({ cwd: "/paper", proposalId: proposal.id }),
-    );
-    await act(() =>
-      root.render(
-        <ChatMarkdown
-          threadRef={threadRef}
-          cwd="/paper"
-          text={`Refine the loop.\n\n${links[0]}\n\nShorten the losses.\n\n${links[1]}\n\nChoose whichever reads best.`}
-        />,
-      ),
-    );
-    await vi.waitFor(() =>
-      expect(container.querySelectorAll('[aria-label="Proposed text"]')).toHaveLength(2),
-    );
-    const markdown = container.querySelector(".chat-markdown")!;
-    expect([...markdown.children].map((child) => child.textContent)).toEqual([
-      "Refine the loop.",
-      expect.stringContaining("Refinement loop"),
-      "Shorten the losses.",
-      expect.stringContaining("Training losses"),
-      "Choose whichever reads best.",
-    ]);
-    expect(container.querySelector("p .not-prose")).toBeNull();
-    const heading = container.querySelector<HTMLElement>('[aria-label="Proposed text"] h3')!;
-    expect(getComputedStyle(heading).fontSize).toBe("12px");
-    expect(getComputedStyle(heading).marginTop).toBe("0px");
-    await act(() =>
-      userEvent.click(page.getByRole("button", { name: "Option B", exact: true }).first()),
-    );
-    await act(() =>
-      userEvent.click(page.getByRole("button", { name: "Apply option B", exact: true })),
-    );
-    expect(fixture.resolve).toHaveBeenCalledWith({
-      environmentId: threadRef.environmentId,
-      input: {
-        cwd: "/paper",
-        proposalId: "proposal-0",
-        resolution: { type: "apply", optionIndex: 1 },
-      },
-    });
-    expect(container.textContent).toContain("Refinement loopapplied");
-    await act(() =>
-      userEvent.click(page.getByRole("button", { name: "View in PDF", exact: true }).first()),
-    );
-    expect(usePaperReveal.getState().requests[scopedThreadKey(threadRef)]?.proposalId).toBe(
-      "proposal-0",
-    );
-  } finally {
-    await act(() => root.unmount());
-    container.remove();
-    permission.mockRestore();
-    vi.unstubAllGlobals();
-  }
+
+  const links = fixture.proposals.map((proposal) =>
+    ProposalLinks.formatPaperProposalLink({ cwd: "/paper", proposalId: proposal.id }),
+  );
+  await using _screen = await render(
+    <ChatMarkdown
+      threadRef={threadRef}
+      cwd="/paper"
+      text={`Refine the loop.\n\n${links[0]}\n\nShorten the losses.\n\n${links[1]}\n\nChoose whichever reads best.`}
+    />,
+    { container },
+  );
+  await vi.waitFor(() =>
+    expect(container.querySelectorAll('[aria-label="Proposed text"]')).toHaveLength(2),
+  );
+  const markdown = container.querySelector(".chat-markdown")!;
+  expect([...markdown.children].map((child) => child.textContent)).toEqual([
+    "Refine the loop.",
+    expect.stringContaining("Refinement loop"),
+    "Shorten the losses.",
+    expect.stringContaining("Training losses"),
+    "Choose whichever reads best.",
+  ]);
+  expect(container.querySelector("p .not-prose")).toBeNull();
+  const heading = container.querySelector<HTMLElement>('[aria-label="Proposed text"] h3')!;
+  expect(getComputedStyle(heading).fontSize).toBe("12px");
+  expect(getComputedStyle(heading).marginTop).toBe("0px");
+  await userEvent.click(page.getByRole("button", { name: "Option B", exact: true }).first());
+  await userEvent.click(page.getByRole("button", { name: "Apply option B", exact: true }));
+  expect(fixture.resolve).toHaveBeenCalledWith({
+    environmentId: threadRef.environmentId,
+    input: {
+      cwd: "/paper",
+      proposalId: "proposal-0",
+      resolution: { type: "apply", optionIndex: 1 },
+    },
+  });
+  expect(container.textContent).toContain("Refinement loopapplied");
+  await userEvent.click(page.getByRole("button", { name: "View in PDF", exact: true }).first());
+  expect(usePaperReveal.getState().requests[scopedThreadKey(threadRef)]?.proposalId).toBe(
+    "proposal-0",
+  );
 });

@@ -22,6 +22,8 @@ const PAPER_FAILURE_MESSAGES = {
   synctex_missing:
     "Source navigation needs the synctex command. Install TeX Live or MiKTeX on the machine that owns this project.",
   io_failed: "Could not read or write the paper files.",
+  preview_failed:
+    "Could not compile the proposal preview. Check the project's Tectonic configuration.",
 } as const;
 
 export const PaperFailureReason = Schema.Literals(
@@ -96,10 +98,6 @@ export const PaperState = Schema.Struct({
   cwd: Schema.String,
   isLatex: Schema.Boolean,
   mainFile: Schema.NullOr(Schema.String),
-  preview: Schema.Struct({
-    preamble: Schema.String,
-    error: Schema.NullOr(Schema.String),
-  }),
   build: PaperBuild,
   proposals: Schema.Array(PaperProposal),
 });
@@ -107,6 +105,21 @@ export type PaperState = typeof PaperState.Type;
 
 export const PaperWorkspaceInput = Schema.Struct({ cwd: TrimmedNonEmptyString });
 export type PaperWorkspaceInput = typeof PaperWorkspaceInput.Type;
+
+export const PaperPreviewInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  proposalId: TrimmedNonEmptyString,
+  optionIndex: Schema.NullOr(NonNegativeInt),
+  /** Invalidates cached previews when the project is rebuilt. */
+  revision: NonNegativeInt,
+});
+export type PaperPreviewInput = typeof PaperPreviewInput.Type;
+
+export const PaperPreview = Schema.Struct({
+  pdf: Schema.NullOr(Schema.String),
+  diagnostics: Schema.Array(PaperDiagnostic),
+});
+export type PaperPreview = typeof PaperPreview.Type;
 
 /** A point on a rendered page, in the same units as `PaperPdfBox`. */
 export const PaperSyncFromPdfInput = Schema.Struct({

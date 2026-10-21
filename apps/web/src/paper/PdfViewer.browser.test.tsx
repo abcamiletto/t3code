@@ -1,6 +1,6 @@
 import { EnvironmentId, ThreadId, type PaperProposal } from "@t3tools/contracts";
-import { act, type ComponentProps } from "react";
-import { createRoot } from "react-dom/client";
+import type { ComponentProps } from "react";
+import { act, render } from "../../test/render";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { PdfViewer } from "./PdfViewer";
@@ -11,11 +11,26 @@ import { buildMessageContext } from "~/lib/composerContextRecords";
 import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
 import { paperReviewComment, PAPER_SECTIONS } from "./reviewComment";
 
+const preview = vi.hoisted(() => ({ pdf: "" }));
+vi.mock(import("../state/query"), async (original) => ({
+  ...(await original()),
+  useEnvironmentQuery: (() => ({
+    data: {
+      build: { revision: 0 },
+      pdf: preview.pdf,
+      diagnostics: [],
+    },
+    error: null,
+  })) as never,
+}));
+
 it("keeps comments open while typing and reveals proposals at their PDF passage", async () => {
+  preview.pdf = btoa(
+    String.fromCharCode(...new Uint8Array(await (await fetch(pdfUrl)).arrayBuffer())),
+  );
   const container = document.createElement("div");
   container.style.cssText = "display:flex;width:600px;height:400px";
   document.body.append(container);
-  const root = createRoot(container);
   const onPageChange = vi.fn();
   const threadRef = {
     environmentId: EnvironmentId.make("paper-test"),
@@ -47,9 +62,8 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
     onPageChange,
     onComment,
   };
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   try {
-    await act(() => root.render(<PdfViewer {...viewerProps} />));
+    await using screen = await render(<PdfViewer {...viewerProps} />, { container });
     const text = await vi.waitFor(
       () => {
         const span = container.querySelector('[data-paper-page="1"] [data-paper-text-layer] span');
@@ -65,13 +79,13 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
       window.getSelection()!.addRange(range);
       text.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
     });
-    await act(() => userEvent.click(page.getByRole("button", { name: "Comment", exact: true })));
+    await userEvent.click(page.getByRole("button", { name: "Comment", exact: true }));
     // Moving focus from PDF text into a textarea collapses the document selection.
     window.getSelection()!.removeAllRanges();
-    await act(() => userEvent.keyboard("ab{Shift>}C{/Shift}{Shift>}{Enter}{/Shift}def"));
+    await userEvent.keyboard("ab{Shift>}C{/Shift}{Shift>}{Enter}{/Shift}def");
     expect(container.querySelector("textarea")?.value).toBe("abC\ndef");
     expect(onComment).not.toHaveBeenCalled();
-    await act(() => userEvent.keyboard("{Enter}"));
+    await userEvent.keyboard("{Enter}");
     expect(onComment).toHaveBeenCalledWith(
       expect.objectContaining({ text: "An original sentence.", page: 1 }),
       "abC\ndef",
@@ -87,8 +101,8 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
       window.getSelection()!.addRange(range);
       secondPageText.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
     });
-    await act(() => userEvent.click(page.getByRole("button", { name: "Comment", exact: true })));
-    await act(() => userEvent.keyboard("Across pages{Enter}"));
+    await userEvent.click(page.getByRole("button", { name: "Comment", exact: true }));
+    await userEvent.keyboard("Across pages{Enter}");
     const crossPageSelection = onComment.mock.lastCall![0];
     expect(crossPageSelection.text).toBe(
       text.textContent!.slice(3) + secondPageText.textContent!.slice(0, 5),
@@ -135,14 +149,12 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
       createdAt: "2026-10-19T00:00:00.000Z",
     };
     const reveal = (requestId: number) =>
-      act(() =>
-        root.render(
-          <PdfViewer
-            {...viewerProps}
-            proposals={[proposal]}
-            reveal={{ proposalId: proposal.id, requestId }}
-          />,
-        ),
+      screen.rerender(
+        <PdfViewer
+          {...viewerProps}
+          proposals={[proposal]}
+          reveal={{ proposalId: proposal.id, requestId }}
+        />,
       );
     await reveal(1);
     await vi.waitFor(() => {
@@ -152,15 +164,17 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
       );
     });
     const proposedPane = document.querySelector<HTMLElement>('[aria-label="Proposed text"] > div')!;
-    expect(proposedPane.scrollHeight).toBeGreaterThan(proposedPane.clientHeight);
-    expect(proposedPane.querySelector('[role="alert"]')?.textContent).toContain(
-      "undefinedPaperMacro",
+    await vi.waitFor(() => {
+      expect(proposedPane.querySelector("canvas")).not.toBeNull();
+      expect(proposedPane.scrollHeight).toBeGreaterThan(proposedPane.clientHeight);
+    });
+    await userEvent.click(page.getByRole("button", { name: "Option B", exact: true }));
+    await vi.waitFor(() =>
+      expect(
+        proposedPane.querySelector('[aria-label="Compiled LaTeX preview"] canvas'),
+      ).not.toBeNull(),
     );
-    await act(() => userEvent.click(page.getByRole("button", { name: "Option B", exact: true })));
-    expect(proposedPane.querySelector('[role="alert"]')).toBeNull();
-    expect(proposedPane.querySelectorAll("math")).toHaveLength(2);
-    expect(proposedPane.querySelector("math mtable")).not.toBeNull();
-    await act(() => userEvent.keyboard("{Escape}"));
+    await userEvent.keyboard("{Escape}");
     await vi.waitFor(() =>
       expect(document.querySelector('[data-slot="popover-popup"]')).toBeNull(),
     );
@@ -183,24 +197,22 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
     expect(document.querySelector('[data-slot="popover-popup"]')).toBeNull();
     await expect.element(page.getByRole("button", { name: "Comment", exact: true })).toBeVisible();
     window.getSelection()!.removeAllRanges();
-    await act(() => userEvent.click(page.elementLocator(heading)));
+    await userEvent.click(page.elementLocator(heading));
     await vi.waitFor(() => {
       expect(document.querySelector('[data-slot="popover-popup"]')?.textContent).toContain(
         "Choose a rewrite",
       );
     });
-    await act(() => userEvent.keyboard("{Escape}"));
-    await act(() =>
-      userEvent.click(
-        page.getByRole("button", { name: "Review proposed change: Choose a rewrite" }),
-      ),
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+      page.getByRole("button", { name: "Review proposed change: Choose a rewrite" }),
     );
     await vi.waitFor(() => {
       expect(document.querySelector('[data-slot="popover-popup"]')?.textContent).toContain(
         "Choose a rewrite",
       );
     });
-    await act(() => userEvent.keyboard("{Escape}"));
+    await userEvent.keyboard("{Escape}");
     await reveal(2);
     await vi.waitFor(() => {
       expect(document.querySelector('[data-slot="popover-popup"]')?.textContent).toContain(
@@ -209,13 +221,11 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
     });
     const store = useComposerDraftStore.getState();
     store.setContextInsertionHandler(threadRef, () => true);
-    await act(() =>
-      userEvent.fill(
-        page.getByRole("textbox", { name: "Reply", exact: true }),
-        "Replace only the final phrase.",
-      ),
+    await userEvent.fill(
+      page.getByRole("textbox", { name: "Reply", exact: true }),
+      "Replace only the final phrase.",
     );
-    await act(() => userEvent.keyboard("{Enter}"));
+    await userEvent.keyboard("{Enter}");
     const draft = store.getComposerDraft(threadRef)!;
     const context = buildMessageContext({
       terminalContexts: [],
@@ -231,8 +241,5 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
   } finally {
     useComposerDraftStore.getState().setContextInsertionHandler(threadRef, null);
     useComposerDraftStore.getState().clearDraftThread(threadRef);
-    await act(() => root.unmount());
-    container.remove();
-    vi.unstubAllGlobals();
   }
 });

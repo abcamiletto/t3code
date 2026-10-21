@@ -822,12 +822,9 @@ importers:
 
   apps/server:
     dependencies:
-      "@unified-latex/unified-latex-util-parse":
-        specifier: ^1.8.4
-        version: 1.8.4
-      "@unified-latex/unified-latex-util-print-raw":
-        specifier: ^1.8.4
-        version: 1.8.4
+      smol-toml:
+        specifier: ^1.8.0
+        version: 1.8.0
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.276
         version: 0.3.276(@anthropic-ai/sdk@0.93.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(zod@4.6.5)
@@ -982,9 +979,6 @@ importers:
 
   apps/web:
     dependencies:
-      "@unified-latex/unified-latex-util-macros":
-        specifier: ^1.8.4
-        version: 1.8.4
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.5.0(@date-fns/tz@1.5.0)(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -12726,10 +12720,6 @@ packages:
     resolution: {integrity: sha512-5+3V1wPRx4gvbeLH2jB7n2cKrYJ1q4i3QgjnBUtrDPeqxJSi6BdzKJg4y6aF6bgW8zfntnYJyrkqFMevDhL2NA==}
     peerDependencies:
       '@types/emscripten': '>=1.39.6'
-
-  "@unified-latex/unified-latex-util-macros@1.8.4":
-    resolution:
-      integrity: sha512-nFPP3qbPIMWoRPfg4+GuLsLt01XpZddOm4Bk8iD0aAWxnpSk3AEFVZEfQ0dpWGCSKawX+cJZNUiG6D9m4Oqtng==
 
 snapshots:
 

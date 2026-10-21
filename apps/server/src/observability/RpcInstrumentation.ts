@@ -97,6 +97,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.secretsAnswerRequest]: "secrets",
   [WS_METHODS.paperSubscribe]: "paper",
   [WS_METHODS.paperBuild]: "paper",
+  [WS_METHODS.paperPreview]: "paper",
   [WS_METHODS.paperSyncFromPdf]: "paper",
   [WS_METHODS.paperResolveProposal]: "paper",
   [WS_METHODS.cloudGetRelayClientStatus]: "cloud",

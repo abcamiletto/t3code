@@ -1,100 +1,113 @@
-import * as Katex from "katex";
-import "katex/dist/katex.min.css";
-import { Fragment } from "react";
-import { latexToDisplay, type DisplayNode } from "./latexDisplay";
+import type { EnvironmentId } from "@t3tools/contracts";
+import { useEffect, useState } from "react";
+import { Button } from "~/components/ui/button";
+import { useEnvironmentQuery } from "~/state/query";
+import { PdfPage } from "./PdfPage";
+import { readPaperDocument, type PaperDocument } from "./pdf";
+import { paperEnvironment } from "./state";
+
+const scale = 1.6;
 
 export function TypesetText({
   latex,
-  preamble = "",
-  error = null,
+  environmentId,
+  cwd,
+  proposalId,
+  optionIndex,
+  revision,
 }: {
   latex: string;
-  preamble?: string;
-  error?: string | null;
+  environmentId: EnvironmentId;
+  cwd: string;
+  proposalId: string;
+  optionIndex: number | null;
+  revision: number;
 }) {
-  if (error) return <PreviewError source={latex} error={new Error(error)} />;
-  let nodes: DisplayNode[];
-  try {
-    nodes = latexToDisplay(latex, preamble);
-  } catch (error) {
-    return <PreviewError source={latex} error={error} />;
-  }
-  return (
-    <span className="font-serif whitespace-pre-wrap">
-      <DisplayNodes nodes={nodes} />
-    </span>
+  const [loaded, setLoaded] = useState<{ source: string; document: PaperDocument } | null>(null);
+  const [failure, setFailure] = useState<{ source: string; message: string } | null>(null);
+  const query = useEnvironmentQuery(
+    latex.trim()
+      ? paperEnvironment.preview({
+          environmentId,
+          input: { cwd, proposalId, optionIndex, revision },
+        })
+      : null,
   );
-}
-
-function DisplayNodes({ nodes, path = "" }: { nodes: readonly DisplayNode[]; path?: string }) {
-  return nodes.map((node, index) => {
-    const key = `${path}.${index}`;
-    switch (node.kind) {
-      case "text":
-        return <Fragment key={key}>{node.text}</Fragment>;
-      case "italic":
-        return (
-          <em key={key}>
-            <DisplayNodes nodes={node.children} path={key} />
-          </em>
-        );
-      case "bold":
-        return (
-          <strong key={key}>
-            <DisplayNodes nodes={node.children} path={key} />
-          </strong>
-        );
-      case "muted":
-        return (
-          <span key={key} className="text-muted-foreground">
-            {node.text}
-          </span>
-        );
-      case "source":
-        return (
-          <code key={key} className="font-mono text-xs">
-            {node.text}
-          </code>
-        );
-      case "math":
-        return <MathPreview key={key} source={node.text} display={node.display} />;
-    }
-  });
-}
-
-function MathPreview({ source, display }: { source: string; display: boolean }) {
-  let html: string;
-  try {
-    html = Katex.renderToString(source, {
-      displayMode: display,
-      throwOnError: true,
-      trust: false,
-    });
-  } catch (error) {
-    return <PreviewError source={source} error={error} />;
-  }
+  const source = query.data?.pdf ?? null;
+  useEffect(() => {
+    if (source === null) return;
+    const controller = new AbortController();
+    let document: PaperDocument | undefined;
+    void readPaperDocument(`data:application/pdf;base64,${source}`, controller.signal)
+      .then((pdf) => {
+        if (controller.signal.aborted) {
+          void pdf.pdf.loadingTask.destroy();
+          return;
+        }
+        document = pdf;
+        setLoaded({ source, document: pdf });
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted)
+          setFailure({
+            source,
+            message: error instanceof Error ? error.message : "Could not display the preview PDF.",
+          });
+      });
+    return () => {
+      controller.abort();
+      void document?.pdf.loadingTask.destroy();
+    };
+  }, [source]);
+  const errors = query.data?.diagnostics.filter((entry) => entry.severity === "error") ?? [];
+  const error =
+    query.error ??
+    (errors.length > 0 ? errors.map((entry) => entry.message).join("\n") : null) ??
+    (failure?.source === source ? failure.message : null);
+  const document = loaded?.source === source ? loaded.document : null;
   return (
-    <span
-      className={
-        display
-          ? "block max-w-full overflow-x-auto whitespace-normal [&_.katex-display]:w-max [&_.katex-display]:min-w-full"
-          : undefined
-      }
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
-}
-
-function PreviewError({ source, error }: { source: string; error: unknown }) {
-  return (
-    <span
-      role="alert"
-      className="inline-flex max-w-full flex-col gap-1 rounded-sm border border-destructive/25 p-2 text-xs text-destructive"
-    >
-      <span>
-        LaTeX preview unavailable: {error instanceof Error ? error.message : "Unsupported LaTeX"}
-      </span>
-      <code className="overflow-x-auto font-mono whitespace-pre-wrap">{source}</code>
-    </span>
+    <div className="min-w-0">
+      {!latex.trim() ? (
+        <span className="text-xs text-muted-foreground">Passage removed.</span>
+      ) : error ? (
+        <div role="alert" className="flex flex-col gap-2 text-xs text-destructive">
+          <span>LaTeX preview unavailable: {error}</span>
+          <code className="overflow-x-auto font-mono whitespace-pre-wrap">{latex}</code>
+          <div>
+            <Button size="micro" variant="ghost" onClick={query.refresh}>
+              Retry preview
+            </Button>
+          </div>
+        </div>
+      ) : document ? (
+        <div className="overflow-x-auto" aria-label="Compiled LaTeX preview">
+          {document.sizes.map((size, index) => (
+            <div
+              key={`${document.id}:${index + 1}`}
+              className="relative"
+              style={{ width: size.width * scale, height: size.height * scale }}
+            >
+              <PdfPage
+                pdf={document.pdf}
+                page={index + 1}
+                layout={{ width: size.width * scale, height: size.height * scale, scale, top: 0 }}
+                onReady={() => {}}
+                onError={(error) =>
+                  setFailure({
+                    source: source!,
+                    message:
+                      error instanceof Error ? error.message : "Could not render the preview PDF.",
+                  })
+                }
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <span role="status" className="text-xs text-muted-foreground">
+          Typesetting preview…
+        </span>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,8 @@
 import {
   PaperError,
   PaperProposal,
+  type PaperPreview,
+  type PaperPreviewInput,
   type PaperProposalOption,
   type PaperResolveProposalInput,
   type PaperSourceRange,
@@ -26,7 +28,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as ProcessRunner from "../processRunner.ts";
 import { parseDiagnostics } from "./diagnostics.ts";
 import { rootTexFiles } from "./project.ts";
-import { readPreviewContext } from "./preamble.ts";
+import { compilePreview } from "./preview.ts";
 import { originalRange, refineSource } from "./source.ts";
 import { backwardSearch, forwardSearch } from "./synctex.ts";
 
@@ -46,6 +48,7 @@ export class PaperService extends Context.Service<
     readonly currentStatus: (cwd: string) => Effect.Effect<PaperState, PaperError>;
     readonly subscribe: (cwd: string) => Stream.Stream<PaperState, PaperError>;
     readonly build: (cwd: string) => Effect.Effect<void, PaperError>;
+    readonly preview: (input: PaperPreviewInput) => Effect.Effect<PaperPreview, PaperError>;
     readonly syncFromPdf: (
       input: PaperSyncFromPdfInput,
     ) => Effect.Effect<PaperSourceRange, PaperError>;
@@ -69,6 +72,7 @@ const make = Effect.gen(function* () {
   const runner = yield* ProcessRunner.ProcessRunner;
   const serviceScope = yield* Effect.scope;
   const initialization = yield* Semaphore.make(1);
+  const previews = yield* Semaphore.make(2);
   const workspaces = new Map<
     string,
     {
@@ -140,13 +144,6 @@ const make = Effect.gen(function* () {
     return {
       isLatex: tex.length > 0,
       mainFile,
-      preview: yield* readPreviewContext(
-        mainFile,
-        Effect.fn("PaperService.readPreambleSource")(function* (name) {
-          const file = yield* sourceFile(cwd, path.extname(name) ? name : `${name}.tex`);
-          return { path: file.absolute, source: yield* io(fs.readFileString(file.absolute)) };
-        }),
-      ),
     };
   });
   const acquireWorkspace = Effect.fn("PaperService.acquireWorkspace")(function* (inputCwd: string) {
@@ -470,6 +467,26 @@ const make = Effect.gen(function* () {
         }),
       ),
     build: (cwd) => withWorkspace(cwd, requestBuild).pipe(Effect.asVoid),
+    preview: Effect.fn("PaperService.preview")(function* (input) {
+      return yield* withWorkspace(input.cwd, (entry) =>
+        Effect.gen(function* () {
+          const { paper } = yield* SubscriptionRef.get(entry.state);
+          if (paper.mainFile === null) return yield* new PaperError({ reason: "not_latex" });
+          const proposal = paper.proposals.find((candidate) => candidate.id === input.proposalId);
+          if (!proposal) return yield* new PaperError({ reason: "proposal_not_found" });
+          const latex =
+            input.optionIndex === null
+              ? proposal.original
+              : proposal.options[input.optionIndex]?.latex;
+          if (latex === undefined) return yield* new PaperError({ reason: "invalid_option" });
+          return yield* compilePreview(paper.cwd, paper.mainFile, latex).pipe(
+            Effect.provideService(FileSystem.FileSystem, fs),
+            Effect.provideService(Path.Path, path),
+            Effect.provideService(ProcessRunner.ProcessRunner, runner),
+          );
+        }),
+      );
+    }, previews.withPermits(1)),
     syncFromPdf: (input) =>
       withWorkspace(input.cwd, (entry) =>
         Effect.gen(function* () {

@@ -33,9 +33,15 @@ export function ProposalCard({
   showLocation?: boolean;
   onClose?: () => void;
 }) {
-  const preview = useEnvironmentQuery(
+  const paper = useEnvironmentQuery(
     paperEnvironment.state({ environmentId: threadRef.environmentId, input: { cwd } }),
-  ).data?.preview;
+  ).data;
+  const preview = {
+    environmentId: threadRef.environmentId,
+    cwd,
+    proposalId: proposal.id,
+    revision: paper?.build.revision ?? 0,
+  };
   const [selected, setSelected] = useState(proposal.appliedOptionIndex ?? 0);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
@@ -183,7 +189,7 @@ export function ProposalCard({
           <section className="flex min-w-0 flex-col gap-2" aria-label="Original text">
             <h3 className="text-xs font-medium text-destructive">Before</h3>
             <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-destructive/25 bg-destructive/5 p-3 text-base leading-relaxed wrap-anywhere">
-              <TypesetText latex={proposal.original} {...preview} />
+              <TypesetText latex={proposal.original} optionIndex={null} {...preview} />
             </div>
           </section>
         )}
@@ -192,11 +198,14 @@ export function ProposalCard({
             {multipleOptions ? `After · Option ${optionLetter(choice)}` : "After"}
           </h3>
           <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-base leading-relaxed wrap-anywhere">
-            <TypesetText latex={option.latex} {...preview} />
+            <TypesetText latex={option.latex} optionIndex={choice} {...preview} />
           </div>
           {option.note && <p className="text-xs text-muted-foreground">{option.note}</p>}
         </section>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Equation numbers and references are local to each preview.
+      </p>
       <div className="flex items-center justify-end gap-2">
         <Button
           size="xs"

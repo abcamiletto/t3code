@@ -378,6 +378,8 @@ import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 import {
   PaperError,
+  PaperPreview,
+  PaperPreviewInput,
   PaperProposal,
   PaperResolveProposalInput,
   PaperSourceRange,
@@ -529,6 +531,7 @@ export const WS_METHODS = {
   secretsAnswerRequest: "secrets.answerRequest",
   paperSubscribe: "paper.subscribe",
   paperBuild: "paper.build",
+  paperPreview: "paper.preview",
   paperSyncFromPdf: "paper.syncFromPdf",
   paperResolveProposal: "paper.resolveProposal",
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
@@ -1858,6 +1861,11 @@ const WsPaperBuildRpc = Rpc.make(WS_METHODS.paperBuild, {
   payload: PaperWorkspaceInput,
   error: Schema.Union([PaperError, EnvironmentAuthorizationError]),
 });
+const WsPaperPreviewRpc = Rpc.make(WS_METHODS.paperPreview, {
+  payload: PaperPreviewInput,
+  success: PaperPreview,
+  error: Schema.Union([PaperError, EnvironmentAuthorizationError]),
+});
 const WsPaperSyncFromPdfRpc = Rpc.make(WS_METHODS.paperSyncFromPdf, {
   payload: PaperSyncFromPdfInput,
   success: PaperSourceRange,
@@ -1912,6 +1920,14 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   "t3/contracts/RpcScopeAuthorization",
   { error: EnvironmentAuthorizationError },
 ) {}
+
+export const PaperRpcGroup = RpcGroup.make(
+  WsPaperSubscribeRpc,
+  WsPaperBuildRpc,
+  WsPaperPreviewRpc,
+  WsPaperSyncFromPdfRpc,
+  WsPaperResolveProposalRpc,
+);
 
 export const WsRpcGroup = RpcGroup.make(
   WsServerProbeRpc,
@@ -1973,10 +1989,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsScheduledTasksRunNowRpc,
   WsScheduledTasksRotateWebhookTokenRpc,
   WsSecretsAnswerRequestRpc,
-  WsPaperSubscribeRpc,
-  WsPaperBuildRpc,
-  WsPaperSyncFromPdfRpc,
-  WsPaperResolveProposalRpc,
   WsScheduledTasksListWebhookDeliveriesRpc,
   WsScheduledTasksGetWebhookDeliveryRpc,
   WsServerReportClientActivityRpc,
@@ -2116,4 +2128,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeShellRpc,
   WsOrchestrationV2SubscribeThreadRpc,
   WsOrchestrationV2SubscribeCommandOutputRpc,
-).middleware(RpcScopeAuthorization);
+)
+  .merge(PaperRpcGroup)
+  .middleware(RpcScopeAuthorization);
