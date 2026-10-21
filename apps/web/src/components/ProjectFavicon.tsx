@@ -2,6 +2,7 @@ import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import {
   getProjectFaviconResourceKey,
   isProjectFaviconFallbackUrl,
+  isProjectLatexFaviconUrl,
 } from "@t3tools/shared/projectFavicon";
 import { FolderCodeIcon } from "lucide-react";
 import type { ComponentType } from "react";
@@ -11,6 +12,7 @@ import { projectFaviconUrlAtom } from "../state/assets";
 import { deriveProjectIdentity } from "../projectIdentity";
 import { projectIconColorClassName } from "../projectIconColors";
 import { ProjectMonogram } from "./ProjectMonogram";
+import { ProjectLatexGlyph } from "./ProjectLatexGlyph";
 import { cn } from "~/lib/utils";
 
 // All lucide icons load as one chunk, only once a project uses a lucide override.
@@ -84,6 +86,10 @@ export function ProjectFavicon(input: {
     );
   }
   const FallbackIcon = input.fallbackIcon ?? FolderCodeIcon;
+
+  if (isProjectLatexFaviconUrl(src)) {
+    return <ProjectLatexGlyph className={input.className} />;
+  }
 
   if (!src || isProjectFaviconFallbackUrl(src)) {
     return (

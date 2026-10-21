@@ -4,6 +4,7 @@ import {
   getProjectFaviconCacheKey,
   getProjectFaviconResourceKey,
   isProjectFaviconFallbackUrl,
+  isProjectLatexFaviconUrl,
 } from "@t3tools/shared/projectFavicon";
 import * as Base64 from "effect/encoding/Base64";
 import * as Option from "effect/Option";
@@ -180,6 +181,10 @@ export function createProjectFaviconCache(input: {
     if (isProjectFaviconFallbackUrl(url)) {
       remove(key);
       return null;
+    }
+    if (isProjectLatexFaviconUrl(url)) {
+      remove(key);
+      return url;
     }
     const revision = getProjectFaviconCacheKey(target.environmentId, target.cwd, url);
     const cached = entries.get(key);

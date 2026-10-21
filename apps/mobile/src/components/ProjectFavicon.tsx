@@ -8,10 +8,12 @@ import {
   getProjectFaviconCacheKey,
   getProjectFaviconResourceKey,
   isProjectFaviconFallbackUrl,
+  isProjectLatexFaviconUrl,
 } from "@t3tools/shared/projectFavicon";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { projectFaviconUrlAtom } from "../state/assets";
+import { ProjectLatexGlyph } from "./ProjectLatexGlyph";
 import {
   countGlyphs,
   projectIconColorClassNames,
@@ -75,6 +77,10 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
 
   if (glyph !== null) {
     return <ProjectIconGlyphView glyph={glyph} size={size} />;
+  }
+
+  if (isProjectLatexFaviconUrl(faviconUrl)) {
+    return <ProjectLatexGlyph size={size} />;
   }
 
   return (

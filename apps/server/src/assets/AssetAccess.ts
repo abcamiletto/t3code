@@ -35,6 +35,7 @@ import { MCP_APP_MAX_HTML_BYTES } from "@t3tools/shared/mcpApp";
 import {
   isProjectFaviconPath,
   PROJECT_FAVICON_FALLBACK_MARKER,
+  PROJECT_FAVICON_LATEX_MARKER,
 } from "@t3tools/shared/projectFavicon";
 import { MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH, toolOutputImages } from "@t3tools/shared/toolOutput";
 import * as Clock from "effect/Clock";
@@ -60,6 +61,7 @@ import * as ServerConfig from "../config.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
+import { rootTexFiles } from "../paper/project.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
 import { extractIcnsPng } from "./icns.ts";
@@ -504,6 +506,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   let fileName: string;
   let sourcePath: string | undefined;
   let imageDimensions: ImageDimensions | null = null;
+  let latexFavicon = false;
 
   switch (input.resource._tag) {
     case "media-file": {
@@ -665,6 +668,14 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
                     }),
                 ),
               );
+      latexFavicon =
+        input.projectCheckout !== "pending" &&
+        (yield* rootTexFiles(fileSystem, workspaceRoot).pipe(
+          Effect.map((files) => files.length > 0),
+          Effect.mapError(
+            (cause) => new AssetProjectFaviconResolutionError({ resource: input.resource, cause }),
+          ),
+        ));
       const isExternalOverride =
         faviconPath !== null &&
         input.projectFaviconPath !== undefined &&
@@ -743,7 +754,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         );
         fileName = `${PROJECT_FAVICON_VERSION_PREFIX}${revision}-${path.basename(sourceFaviconPath)}`;
       } else {
-        fileName = PROJECT_FAVICON_FALLBACK_MARKER;
+        fileName = latexFavicon ? PROJECT_FAVICON_LATEX_MARKER : PROJECT_FAVICON_FALLBACK_MARKER;
       }
       break;
     }
@@ -823,7 +834,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   const encodedPayload = base64UrlEncode(encodeAssetClaims(claims));
   const token = `${encodedPayload}.${signPayload(encodedPayload, signingSecret)}`;
   return {
-    relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}`,
+    relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}${latexFavicon && sourcePath !== undefined ? "?latex=1" : ""}`,
     expiresAt,
     ...(sourcePath !== undefined ? { sourcePath } : {}),
     ...(imageDimensions !== null ? { imageDimensions } : {}),

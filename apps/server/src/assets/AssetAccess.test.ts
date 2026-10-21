@@ -8,7 +8,10 @@ import {
   ThreadId,
   TurnItemId,
 } from "@t3tools/contracts";
-import { PROJECT_FAVICON_FALLBACK_MARKER } from "@t3tools/shared/projectFavicon";
+import {
+  PROJECT_FAVICON_FALLBACK_MARKER,
+  PROJECT_FAVICON_LATEX_MARKER,
+} from "@t3tools/shared/projectFavicon";
 import { MCP_APP_MAX_HTML_BYTES } from "@t3tools/shared/mcpApp";
 import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
@@ -853,6 +856,55 @@ describe("AssetAccess", () => {
         ),
       ).toBeNull();
     }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("issues a LaTeX marker without a source path for a TeX project", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-asset-latex-" });
+      yield* fileSystem.writeFileString(path.join(root, "main.tex"), "\\documentclass{article}");
+
+      const result = yield* issueAssetUrl({
+        resource: { _tag: "project-favicon", cwd: root },
+      });
+
+      expect(result.relativeUrl.endsWith(`/${PROJECT_FAVICON_LATEX_MARKER}`)).toBe(true);
+      expect(result.sourcePath).toBeUndefined();
+      const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+      const separatorIndex = suffix.indexOf("/");
+      expect(
+        yield* resolveAsset(suffix.slice(0, separatorIndex), suffix.slice(separatorIndex + 1)),
+      ).toBeNull();
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect.each([undefined, "brand/custom.svg"])(
+    "marks real favicons as LaTeX capable without replacing the icon (override: %s)",
+    (projectFaviconPath) =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-asset-latex-" });
+        yield* fileSystem.makeDirectory(path.join(root, "brand"));
+        yield* fileSystem.writeFileString(path.join(root, "main.tex"), "\\documentclass{article}");
+        yield* fileSystem.writeFileString(path.join(root, "favicon.svg"), "<svg>root</svg>");
+        yield* fileSystem.writeFileString(path.join(root, "brand/custom.svg"), "<svg>custom</svg>");
+        const issued = yield* issueAssetUrl({
+          resource: { _tag: "project-favicon", cwd: root },
+          ...(projectFaviconPath === undefined ? {} : { projectFaviconPath }),
+        });
+        const url = new URL(issued.relativeUrl, "https://t3.invalid");
+        expect(url.searchParams.get("latex")).toBe("1");
+        expect(issued.sourcePath).toBe(projectFaviconPath ?? "favicon.svg");
+        const suffix = url.pathname.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+        const separator = suffix.indexOf("/");
+        const asset = yield* resolveAsset(suffix.slice(0, separator), suffix.slice(separator + 1));
+        expect(asset).toEqual({
+          kind: "file",
+          path: yield* fileSystem.realPath(path.join(root, projectFaviconPath ?? "favicon.svg")),
+        });
+      }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("issues an exact capability for a saved favicon outside the workspace", () =>

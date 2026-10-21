@@ -1,3 +1,8 @@
+import {
+  standalonePaperProposalIds,
+  paperProposalRowsEqual,
+  type PaperProposalTimelineRow,
+} from "~/paper/timeline";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 export { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { isLiveSubagentTurnItem } from "@t3tools/client-runtime/state/subagentRuntime";
@@ -77,6 +82,7 @@ function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "proposed-plan") {
     return entry.proposedPlan.runId;
   }
+  if (entry.kind === "paper-proposal") return entry.runId;
   if (entry.kind === "html-render" || entry.kind === "mcp-app") return entry.runId;
   return entry.kind === "work" ? (entry.entry.runId ?? null) : null;
 }
@@ -510,6 +516,7 @@ export type MessagesTimelineRow = MessagesTimelineRowContent & {
 };
 
 type MessagesTimelineRowContent =
+  | PaperProposalTimelineRow
   | {
       kind: "worktree-setup";
       id: string;
@@ -802,6 +809,7 @@ function deriveSupersededAttemptFolds(
       unfoldedRunIds.has(entry.attempt.runId) ||
       (entry.kind === "message" && entry.message.role === "user") ||
       entry.kind === "html-render" ||
+      entry.kind === "paper-proposal" ||
       entry.kind === "mcp-app" ||
       timelineEntryIsPersistentResourceCard(entry) ||
       liveSubagentEntryIds.has(entry.id) ||
@@ -1429,6 +1437,11 @@ export function deriveMessagesTimelineRows(input: {
       }
     }
   }
+  const standaloneProposals = standalonePaperProposalIds(
+    timelineEntries,
+    collapsedEntryIds,
+    collapsedSupersededEntryIds,
+  );
   const runIdIsActiveResponse = (runId: RunId | null | undefined) =>
     runId == null ? runlessWorkActive : activeVisualResponseRunIds.has(runId);
   const workEntryIsInActiveRun = (entry: WorkLogEntry) =>
@@ -1770,6 +1783,11 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: timelineEntry.createdAt,
         proposedPlan: timelineEntry.proposedPlan,
       });
+      continue;
+    }
+
+    if (timelineEntry.kind === "paper-proposal") {
+      if (standaloneProposals.has(timelineEntry.id)) nextRows.push(timelineEntry);
       continue;
     }
 
@@ -2212,6 +2230,9 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
     case "proposed-plan":
       return a.proposedPlan === (b as typeof a).proposedPlan;
+
+    case "paper-proposal":
+      return paperProposalRowsEqual(a, b as typeof a);
 
     case "html-render": {
       // Entries rebuild on any tool update; an equal page must keep its mounted frame.
