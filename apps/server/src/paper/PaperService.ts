@@ -25,6 +25,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import * as ProcessRunner from "../processRunner.ts";
 import { parseDiagnostics } from "./diagnostics.ts";
+import { rootTexFiles } from "./project.ts";
 import { originalRange, refineSource } from "./source.ts";
 import { backwardSearch, forwardSearch } from "./synctex.ts";
 
@@ -125,10 +126,9 @@ const make = Effect.gen(function* () {
     return { absolute, relative };
   });
   const detect = Effect.fn("PaperService.detect")(function* (cwd: string) {
-    const names = yield* fs
-      .readDirectory(cwd)
-      .pipe(Effect.mapError((cause) => new PaperError({ reason: "workspace_unavailable", cause })));
-    const tex = names.filter((name) => name.endsWith(".tex")).sort();
+    const tex = yield* rootTexFiles(fs, cwd).pipe(
+      Effect.mapError((cause) => new PaperError({ reason: "workspace_unavailable", cause })),
+    );
     const main: string[] = [];
     for (const file of tex) {
       const source = yield* io(fs.readFileString(path.join(cwd, file)));

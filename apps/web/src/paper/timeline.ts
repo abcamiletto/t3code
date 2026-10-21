@@ -1,4 +1,6 @@
 import type { OrchestrationV2TurnItem, PaperProposalReference, RunId } from "@t3tools/contracts";
+import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
+import type { TimelineEntry } from "~/session-logic";
 import { paperProposalFromToolItem } from "@t3tools/shared/toolOutput";
 
 export interface PaperProposalTimelineRow {
@@ -27,5 +29,34 @@ export function paperProposalRowsEqual(a: PaperProposalTimelineRow, b: PaperProp
     a.createdAt === b.createdAt &&
     a.paperProposal.cwd === b.paperProposal.cwd &&
     a.paperProposal.proposalId === b.paperProposal.proposalId
+  );
+}
+
+export function standalonePaperProposalIds(
+  entries: readonly TimelineEntry[],
+  collapsedEntryIds: ReadonlySet<string>,
+  collapsedSupersededEntryIds: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const inline = new Set(
+    entries.flatMap((entry) =>
+      entry.kind === "message" &&
+      entry.message.role === "assistant" &&
+      !collapsedEntryIds.has(entry.id) &&
+      !collapsedSupersededEntryIds.has(entry.id)
+        ? ProposalLinks.inlinePaperProposalReferences(entry.message.text).map((reference) =>
+            JSON.stringify([entry.message.runId, reference.cwd, reference.proposalId]),
+          )
+        : [],
+    ),
+  );
+  return new Set(
+    entries.flatMap((entry) =>
+      entry.kind === "paper-proposal" &&
+      !inline.has(
+        JSON.stringify([entry.runId, entry.paperProposal.cwd, entry.paperProposal.proposalId]),
+      )
+        ? [entry.id]
+        : [],
+    ),
   );
 }

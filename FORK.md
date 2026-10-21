@@ -1,74 +1,69 @@
 # T3 Paper fork
 
-T3 Paper is T3 Code plus a live LaTeX paper workspace. It installs next to the official app.
+T3 Paper adds a LaTeX review workspace to T3 Code and installs alongside the official app.
 
-## Staying current with upstream
+## Rebasing
 
-`main` contains T3 Paper and its fixes. Merge upstream changes into it to keep the fork current.
+Keep fork commits grouped by purpose: app identity, Paper features, and fork maintenance docs.
+Keep Paper behavior in the `paper/` directories; upstream files should only register or call it.
+Do not edit upstream services' return types to carry Paper metadata.
 
 ```sh
-git fetch https://github.com/pingdotgg/t3code.git main
+git fetch upstream main
 git switch main
-git merge FETCH_HEAD
-git push origin main
+git branch backup/paper-before-rebase
+git rebase upstream/main
+# Resolve conflicts and run the focused checks below before pushing.
+git push --force-with-lease origin main
 ```
 
-Upstream conflicts usually land in the small hooks listed below.
+Use a fresh backup branch name for each rebase. Preserve upstream deletions when resolving test
+conflicts; retain Paper coverage in its own test files rather than reviving removed upstream tests.
 
-## Fork-owned code
+## Integration boundaries
 
-- `packages/contracts/src/paper.ts`: wire types for paper state, proposals and SyncTeX lookups.
-- `apps/server/src/paper/`: Tectonic builds, file watching, SyncTeX, proposals.
-- `apps/server/src/mcp/toolkits/paper/`: the `paper_status` and `paper_propose_edits` agent tools.
-- `apps/web/src/paper/` and `packages/client-runtime/src/paper/`: the Paper panel and its chat card.
-- `packages/shared/src/forkIdentity.ts`: app name, bundle id, URL scheme, T3 home (`~/.t3-paper`) and
-  the auto-update switch. Every collision with the official app is resolved by reading this module.
+- `packages/contracts/src/paper.ts`, `apps/server/src/paper/`, and
+  `packages/client-runtime/src/paper/` own the contracts, build service, and client state.
+- `apps/server/src/mcp/toolkits/paper/` registers the agent tools.
+- `apps/web/src/paper/` owns PDF review, proposal rendering, and proposal placement in the timeline.
+  Chat, Markdown, and right-panel code call into it.
+- `AssetAccess.ts` adds LaTeX metadata to project favicon URLs. The generic favicon resolver and
+  project enrichment services stay unchanged.
+- `packages/shared/src/forkIdentity.ts` defines the app identity. Desktop startup, protocol,
+  authentication, update, and packaging code read it to keep Paper separate from T3 Code.
 
-## Upstream hooks
+## Verification
 
-Each is a few lines that register or call into fork-owned code:
-
-- RPC registration: `contracts/src/rpc.ts`, `clientRpcPermissions.ts`, `server/src/ws.ts`,
-  `auth/RpcAuthorization.ts`, `observability/RpcInstrumentation.ts`, `server/src/server.ts`.
-- Agent tools: `mcp/McpHttpServer.ts`, `shared/src/t3McpToolPresentation.ts`,
-  `shared/src/toolOutput.ts`, `client-runtime/src/t3ToolSummary.ts`, `ClaudeAdapterV2.ts`.
-- Panel and chat: `rightPanelStore.ts`, `RightPanelTabs.tsx`, `RightPanelSurfaceContent.tsx`,
-  `ChatView.tsx`, `session-logic.ts`, `MessagesTimeline.logic.ts`, `MessagesTimeline.tsx`,
-  `closedViewStore.ts`.
-- LaTeX project icon: `ProjectFaviconResolver.ts`, `AssetAccess.ts`, `ProjectEnrichmentService.ts`,
-  `shared/src/projectFavicon.ts`, `client-runtime/src/projectFaviconCache.ts`, and both
-  `ProjectFavicon.tsx` files.
-- Identity: desktop app/env/user-data/protocol/update modules, `os-jank.ts`, `httpCors.ts`,
-  `cli/browser.ts`, `branding.ts`, `SidebarChrome.tsx`, `promptLinks.ts`, `codexAuthHandoff.ts`,
-  `providerAuthReturnUrl.ts`, `scripts/build-desktop-artifact.ts`, `scripts/dev-runner.ts`.
-
-## Building the app
-
-Enable the production T3 Connect configuration before building (these are public identifiers):
-If `.env` already exists, add the public values from `.env.example` instead of replacing it.
+Use the Node and pnpm versions declared in `package.json` and the installed `vp` executable.
 
 ```sh
-cp .env.example .env
+vp test run apps/server/src/paper apps/web/src/paper packages/shared/src/paperProposal.test.ts
+vp test run apps/server/src/assets/AssetAccess.test.ts -t 'LaTeX'
+env -u ELECTRON_RUN_AS_NODE vp test run scripts/build-desktop-artifact.test.ts
+```
+
+Run targeted lint and the typecheck task in each affected app. Identity changes also need the
+relevant desktop tests. Keep tests for observable behavior: compile failures retain the good PDF,
+source edits stay safe, proposals belong to the correct chat, and PDF comments survive editing.
+
+## Local macOS builds
+
+Keep the public production configuration from `.env.example` in `.env`. Put the existing local
+Code Signing certificate name in the gitignored `.env.local`:
+
+```sh
+CSC_NAME="T3 Paper Local Development"
+```
+
+```sh
 node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 --output-dir release
 ```
 
-Packaged macOS builds import an existing T3 Code account and saved machine connections from
-`~/.t3/userdata` on startup. Credentials are unlocked through macOS Keychain and re-encrypted for
-Paper; existing Paper credentials and nonempty connection catalogs take precedence. The apps use
-separate Chromium profiles and server databases. Chats are shared by connecting to the same
-environment servers, rather than copying their databases.
-After importing, Paper starts with its separate local environment disabled so new chats use the
-existing machines. It can be enabled again in Settings → Connections.
+The standard packager loads these settings and signs with the same certificate on every build.
+Verify the packaged app with `codesign --verify --deep --strict` before installing. Keep the same
+app identity and signing certificate so Keychain can recognize future builds.
 
-The packaged renderer uses `t3code://app`, an origin accepted by the production sign-in service.
-Electron protocol handlers are scoped to each app. Paper keeps its separate browser profile,
-`t3paper://` public links, and OS URL registration.
-
-The build is ad-hoc signed and has no update feed, so it can never be replaced by an official
-release. electron-builder's ad-hoc signature does not survive packaging (`codesign --verify` reports
-missing resources), so re-sign the app with `codesign --force --deep --sign -` and repackage it with
-`hdiutil create` before publishing the DMG as a GitHub release on the fork.
-
-Upstream desktop tests that assert the official app's scheme, name or profile paths are updated
-to T3 Paper's values when merging upstream changes. The Linux theme-icon tests assume a
-case-sensitive filesystem and fail on macOS regardless of the fork.
+Paper uses its own `~/.t3-paper` state and Chromium profile. It does not import the official app's
+account, connections, chats, or Keychain entries. Its packaged renderer uses `t3code://app` for
+production sign-in compatibility; public links and OS registration use `t3paper://`. Automatic
+updates are disabled so an official release cannot replace the fork.

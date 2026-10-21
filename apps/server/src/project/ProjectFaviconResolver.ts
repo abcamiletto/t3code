@@ -18,11 +18,6 @@ const FAVICON_CACHE_CAPACITY = 512;
 const FAVICON_POSITIVE_CACHE_TTL = Duration.minutes(10);
 const FAVICON_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
-export type ProjectFaviconResolution =
-  | string
-  | { readonly _tag: "latex"; readonly path?: string }
-  | null;
-
 function faviconCacheKey(cwd: string, faviconPath?: string): string {
   return `${faviconPath ?? ""}\0${cwd}`;
 }
@@ -92,7 +87,6 @@ export class ProjectFaviconResolutionError extends Schema.TaggedError<ProjectFav
       "resolve-path",
       "stat-candidate",
       "read-source",
-      "read-root",
     ]),
     workspaceRoot: Schema.String,
     relativePath: Schema.optional(Schema.String),
@@ -116,7 +110,7 @@ export class ProjectFaviconResolver extends Context.Service<
     readonly resolvePath: (
       cwd: string,
       faviconPath?: string,
-    ) => Effect.Effect<ProjectFaviconResolution, ProjectFaviconResolutionError>;
+    ) => Effect.Effect<string | null, ProjectFaviconResolutionError>;
     /** Forgets cached lookups for a workspace whose files changed, such as a finished clone. */
     readonly invalidate: (cwd: string) => Effect.Effect<void>;
   }
@@ -263,7 +257,7 @@ export const make = Effect.gen(function* () {
   const resolvePathUncached = Effect.fn("ProjectFaviconResolver.resolvePathUncached")(function* (
     cwd: string,
     faviconPath?: string,
-  ): Effect.fn.Return<ProjectFaviconResolution, ProjectFaviconResolutionError> {
+  ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
     const projectCwd = yield* workspacePaths.normalizeWorkspaceRoot(cwd).pipe(
       Effect.mapError(
         (cause) =>
@@ -274,23 +268,10 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
-    const entries = yield* fileSystem.readDirectory(projectCwd).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectFaviconResolutionError({
-            operation: "read-root",
-            workspaceRoot: projectCwd,
-            cause,
-          }),
-      ),
-    );
-    const isLatex = entries.some((entry) => entry.endsWith(".tex"));
-    const found = (file: string): ProjectFaviconResolution =>
-      isLatex ? { _tag: "latex", path: file } : file;
     if (faviconPath !== undefined) {
       const existing = yield* findExistingFile(projectCwd, [faviconPath], "filesystem");
       if (existing) {
-        return found(existing);
+        return existing;
       }
     }
 
@@ -302,7 +283,7 @@ export const make = Effect.gen(function* () {
         "workspace",
       );
       if (existing) {
-        return found(existing);
+        return existing;
       }
     }
 
@@ -310,24 +291,15 @@ export const make = Effect.gen(function* () {
       findExistingFile(projectCwd, [candidate], "workspace"),
     );
     if (wellKnown) {
-      return found(wellKnown);
+      return wellKnown;
     }
 
-    const fromSource = yield* firstInOrder(ICON_SOURCE_FILES, (sourceFile) =>
+    return yield* firstInOrder(ICON_SOURCE_FILES, (sourceFile) =>
       findIconFromSource(projectCwd, sourceFile),
     );
-    if (fromSource) {
-      return found(fromSource);
-    }
-
-    return isLatex ? { _tag: "latex" } : null;
   });
 
-  const faviconCache = yield* Cache.makeWith<
-    string,
-    ProjectFaviconResolution,
-    ProjectFaviconResolutionError
-  >(
+  const faviconCache = yield* Cache.makeWith<string, string | null, ProjectFaviconResolutionError>(
     (key) => {
       const { cwd, faviconPath } = parseFaviconCacheKey(key);
       return resolvePathUncached(cwd, faviconPath);
@@ -335,7 +307,7 @@ export const make = Effect.gen(function* () {
     {
       capacity: FAVICON_CACHE_CAPACITY,
       timeToLive: Exit.match({
-        onSuccess: (value: ProjectFaviconResolution) =>
+        onSuccess: (value: string | null) =>
           value === null ? FAVICON_NEGATIVE_CACHE_TTL : FAVICON_POSITIVE_CACHE_TTL,
         onFailure: () => Duration.zero,
       }),
@@ -347,18 +319,17 @@ export const make = Effect.gen(function* () {
   )(function* (cwd, faviconPath) {
     const key = faviconCacheKey(cwd, faviconPath);
     const cached = yield* Cache.get(faviconCache, key);
-    const cachedPath = typeof cached === "string" ? cached : cached?.path;
-    if (cachedPath === undefined) {
-      return cached;
+    if (cached === null) {
+      return null;
     }
 
-    const stats = yield* optionOnNotFound(fileSystem.stat(cachedPath)).pipe(
+    const stats = yield* optionOnNotFound(fileSystem.stat(cached)).pipe(
       Effect.mapError(
         (cause) =>
           new ProjectFaviconResolutionError({
             operation: "stat-candidate",
             workspaceRoot: cwd,
-            absolutePath: cachedPath,
+            absolutePath: cached,
             cause,
           }),
       ),

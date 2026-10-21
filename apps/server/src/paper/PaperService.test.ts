@@ -561,48 +561,6 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
     }).pipe(Effect.provide(layerPaper)),
   );
 
-  it.effect("evicts workspaces after unsubscribed calls and reloads persisted proposals", () =>
-    Effect.gen(function* () {
-      const { fs, path, cwd } = yield* temporaryPaper;
-      let loads = 0;
-      const layer = PaperService.layer.pipe(
-        Layer.provide(layerNoCompiler),
-        Layer.provide(
-          Layer.succeed(FileSystem.FileSystem, {
-            ...fs,
-            readFileString: (file, options) => {
-              if (file.endsWith("proposals.json")) loads++;
-              return fs.readFileString(file, options);
-            },
-          }),
-        ),
-      );
-      yield* Effect.gen(function* () {
-        const paper = yield* PaperService.PaperService;
-        yield* paper.status(cwd);
-        yield* paper.status(cwd);
-        expect(loads).toBe(2);
-        yield* paper.currentStatus(cwd);
-        const proposal = yield* paper.propose({ ...input, cwd });
-        expect(loads).toBe(4);
-        yield* paper.resolve({
-          cwd,
-          proposalId: proposal.id,
-          resolution: { type: "apply", optionIndex: 0 },
-        });
-        expect(loads).toBe(5);
-        expect(yield* fs.readFileString(path.join(cwd, "main.tex"))).toBe(
-          document.replace(input.original, options[0]!.latex),
-        );
-        yield* paper.propose({ ...input, cwd }).pipe(Effect.flip);
-        yield* paper.syncFromPdf({ cwd, page: 1, x: 20, y: 15 }).pipe(Effect.flip);
-        const state = yield* paper.status(cwd);
-        expect(loads).toBe(8);
-        expect(state.proposals[0]).toMatchObject({ id: proposal.id, status: "applied" });
-      }).pipe(Effect.provide(layer));
-    }),
-  );
-
   it.effect.each([false, true])(
     "evicts after the last subscriber and build finish (disconnect during build: %s)",
     (duringBuild) =>

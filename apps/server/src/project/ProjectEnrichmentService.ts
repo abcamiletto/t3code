@@ -107,11 +107,7 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
     },
   );
   const faviconCache = yield* Cache.makeWith(
-    (workspaceRoot: string) =>
-      faviconResolver.resolvePath(workspaceRoot).pipe(
-        Effect.map((favicon) => (typeof favicon === "string" ? favicon : (favicon?.path ?? null))),
-        Effect.exit,
-      ),
+    (workspaceRoot: string) => Effect.exit(faviconResolver.resolvePath(workspaceRoot)),
     {
       capacity: cacheCapacity,
       timeToLive: Exit.match({

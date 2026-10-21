@@ -1,5 +1,8 @@
-import { paperProposalRowsEqual, type PaperProposalTimelineRow } from "~/paper/timeline";
-import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
+import {
+  standalonePaperProposalIds,
+  paperProposalRowsEqual,
+  type PaperProposalTimelineRow,
+} from "~/paper/timeline";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 export { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { isLiveSubagentTurnItem } from "@t3tools/client-runtime/state/subagentRuntime";
@@ -1434,17 +1437,10 @@ export function deriveMessagesTimelineRows(input: {
       }
     }
   }
-  const inlineProposals = new Set(
-    timelineEntries.flatMap((entry) =>
-      entry.kind === "message" &&
-      entry.message.role === "assistant" &&
-      !collapsedEntryIds.has(entry.id) &&
-      !collapsedSupersededEntryIds.has(entry.id)
-        ? ProposalLinks.inlinePaperProposalReferences(entry.message.text).map((reference) =>
-            JSON.stringify([entry.message.runId, reference.cwd, reference.proposalId]),
-          )
-        : [],
-    ),
+  const standaloneProposals = standalonePaperProposalIds(
+    timelineEntries,
+    collapsedEntryIds,
+    collapsedSupersededEntryIds,
   );
   const runIdIsActiveResponse = (runId: RunId | null | undefined) =>
     runId == null ? runlessWorkActive : activeVisualResponseRunIds.has(runId);
@@ -1791,9 +1787,7 @@ export function deriveMessagesTimelineRows(input: {
     }
 
     if (timelineEntry.kind === "paper-proposal") {
-      const reference = timelineEntry.paperProposal;
-      const key = JSON.stringify([timelineEntry.runId, reference.cwd, reference.proposalId]);
-      if (!inlineProposals.has(key)) nextRows.push(timelineEntry);
+      if (standaloneProposals.has(timelineEntry.id)) nextRows.push(timelineEntry);
       continue;
     }
 

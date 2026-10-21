@@ -12,7 +12,6 @@ import { TypesetText } from "./TypesetText";
 import { PaperIconButton } from "./PaperIconButton";
 import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import { paperEnvironment } from "./state";
-import { PaperReplyInput } from "./PaperReplyInput";
 import { openPaperPanel } from "./openPaperPanel";
 
 const optionLetter = (index: number) => String.fromCharCode(65 + index);
@@ -214,7 +213,23 @@ export function ProposalCard({
           {multipleOptions ? `Apply option ${optionLetter(choice)}` : "Apply"}
         </Button>
       </div>
-      <PaperReplyInput value={feedback} onChange={setFeedback} onSubmit={reply} />
+      <textarea
+        rows={1}
+        aria-label="Reply"
+        placeholder="Reply…"
+        className="field-sizing-content min-h-lh max-h-32 w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        value={feedback}
+        onChange={(event) => setFeedback(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            reply();
+          } else if (event.key === "Escape") {
+            event.stopPropagation();
+            setFeedback("");
+          }
+        }}
+      />
       {feedback.trim() && (
         <div className="flex justify-end">
           <Button size="xs" variant="ghost" onClick={reply}>

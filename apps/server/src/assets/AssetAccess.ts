@@ -61,6 +61,7 @@ import * as ServerConfig from "../config.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
+import { rootTexFiles } from "../paper/project.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
 import { extractIcnsPng } from "./icns.ts";
@@ -653,7 +654,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       // A lookup in a half-cloned checkout would cache a miss that outlives the clone.
       // Once it lands, a miss cached before (by enrichment) is stale too.
       if (input.projectCheckout === "cloned") yield* faviconResolver.invalidate(workspaceRoot);
-      const favicon =
+      const faviconPath =
         input.projectCheckout === "pending"
           ? null
           : yield* faviconResolver
@@ -667,8 +668,14 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
                     }),
                 ),
               );
-      const faviconPath = typeof favicon === "string" ? favicon : (favicon?.path ?? null);
-      latexFavicon = faviconPath !== null && typeof favicon !== "string";
+      latexFavicon =
+        input.projectCheckout !== "pending" &&
+        (yield* rootTexFiles(fileSystem, workspaceRoot).pipe(
+          Effect.map((files) => files.length > 0),
+          Effect.mapError(
+            (cause) => new AssetProjectFaviconResolutionError({ resource: input.resource, cause }),
+          ),
+        ));
       const isExternalOverride =
         faviconPath !== null &&
         input.projectFaviconPath !== undefined &&
@@ -747,10 +754,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         );
         fileName = `${PROJECT_FAVICON_VERSION_PREFIX}${revision}-${path.basename(sourceFaviconPath)}`;
       } else {
-        fileName =
-          favicon && typeof favicon !== "string"
-            ? PROJECT_FAVICON_LATEX_MARKER
-            : PROJECT_FAVICON_FALLBACK_MARKER;
+        fileName = latexFavicon ? PROJECT_FAVICON_LATEX_MARKER : PROJECT_FAVICON_FALLBACK_MARKER;
       }
       break;
     }
@@ -830,7 +834,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   const encodedPayload = base64UrlEncode(encodeAssetClaims(claims));
   const token = `${encodedPayload}.${signPayload(encodedPayload, signingSecret)}`;
   return {
-    relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}${latexFavicon ? "?latex=1" : ""}`,
+    relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}${latexFavicon && sourcePath !== undefined ? "?latex=1" : ""}`,
     expiresAt,
     ...(sourcePath !== undefined ? { sourcePath } : {}),
     ...(imageDimensions !== null ? { imageDimensions } : {}),

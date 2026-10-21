@@ -112,8 +112,7 @@ import { parseAssistantCitationHref } from "@t3tools/shared/assistantCitations";
 import { parseComposerContextHref } from "@t3tools/shared/composerContextReferences";
 import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
 import * as ProposalLinks from "@t3tools/shared/paperProposalLinks";
-import { PaperProposal } from "~/paper/PaperProposal";
-import { openPaperPanel } from "~/paper/openPaperPanel";
+import { renderPaperProposalParagraph, renderPaperProposalLink } from "~/paper/PaperProposal";
 import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { mathKind } from "@t3tools/shared/markdownMath";
@@ -2904,18 +2903,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
   },
   p: function MarkdownParagraph({ node, children, ...props }) {
     const { skills, threadRef } = use(ChatMarkdownRendererContext);
-    const only = node?.children.length === 1 ? node.children[0] : undefined;
-    const href =
-      only?.type === "element" && only.tagName === "a" ? only.properties.href : undefined;
-    const reference =
-      typeof href === "string" ? ProposalLinks.parsePaperProposalHref(href) : undefined;
-    if (reference && threadRef) {
-      return (
-        <div className="my-3 not-prose">
-          <PaperProposal threadRef={threadRef} reference={reference} />
-        </div>
-      );
-    }
+    const proposal = renderPaperProposalParagraph(node, threadRef ?? null);
+    if (proposal) return proposal;
     return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills)}</p>;
   },
   blockquote: function MarkdownBlockquote({ node: _node, children, ...props }) {
@@ -3014,19 +3003,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const text = use(ChatMarkdownTextContext);
     const citation = href ? parseAssistantCitationHref(href) : null;
     if (citation) return <AssistantCitationChip citation={citation} />;
-    const proposal = href ? ProposalLinks.parsePaperProposalHref(href) : undefined;
-    if (proposal) {
-      return (
-        <button
-          type="button"
-          onClick={() =>
-            threadRef && openPaperPanel(threadRef, { proposalId: proposal.proposalId })
-          }
-        >
-          {children}
-        </button>
-      );
-    }
+    const proposal = renderPaperProposalLink(href, children, threadRef ?? null);
+    if (proposal) return proposal;
     const linkedThreadId = href ? parseThreadLinkHref(href) : null;
     if (linkedThreadId) {
       const label = hastPlainTextDeep(node) || linkedThreadId;
