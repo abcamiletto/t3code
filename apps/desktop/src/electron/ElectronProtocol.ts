@@ -1,3 +1,4 @@
+import { forkIdentity } from "@t3tools/shared/forkIdentity";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -13,11 +14,17 @@ import * as Scope from "effect/Scope";
 import * as Electron from "electron";
 
 export const DESKTOP_HOST = "app";
+// Production T3 Connect permits this renderer origin. Electron handlers are app-local;
+// Paper's public deep links and OS protocol registration keep their separate scheme.
 const DESKTOP_PRODUCTION_SCHEME = "t3code";
-const DESKTOP_DEVELOPMENT_SCHEME = "t3code-dev";
+const DESKTOP_DEVELOPMENT_SCHEME = forkIdentity.developmentScheme;
 
 export function getDesktopScheme(isDevelopment: boolean): string {
   return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;
+}
+
+export function getDesktopLinkScheme(isDevelopment: boolean): string {
+  return isDevelopment ? forkIdentity.developmentScheme : forkIdentity.scheme;
 }
 
 function getDesktopOrigin(isDevelopment: boolean): string {
