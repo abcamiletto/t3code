@@ -60,7 +60,7 @@ so short instructions such as "delete this part" retain their target.
 
 The agent makes closely specified edits directly, such as deleting a marked passage or following
 wording you sketch. Generic feedback such as "awkward" or "make this clearer" leads to options
-for your approval; one option is enough.
+for your approval, with at least two distinct alternatives.
 Proposals are highlighted on the PDF and shown in the chat.
 
 Click a highlighted passage or its **Review change** button to open the alternatives. You can still

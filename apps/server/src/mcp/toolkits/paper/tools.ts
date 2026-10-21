@@ -58,11 +58,11 @@ const PaperStatusTool = Tool.make("paper_status", {
 
 const PaperProposeEditsTool = Tool.make("paper_propose_edits", {
   description:
-    "Show LaTeX proposals as interactive chat cards. Make closely specified edits directly: delete the marked passage, replace a term, or follow wording the user sketches; minor polishing is fine. For generic feedback ('LLM slop', 'awkward', 'make this clearer') or substantial editorial choices, propose options and wait for Apply. Offer 1–4 options; one is enough. Put returned markdown in its own paragraph where each card belongs. Keep prose and notes brief; do not repeat the card. Use the smallest self-contained exact original occurring once in the workspace-relative file. Preserve balanced braces and complete formulas with both delimiters or matching begin/end tags in original and replacements. Leave the original unchanged until Apply. Applied options are already saved; read current source and check paper_status after edits.",
+    "Show LaTeX proposals as interactive chat cards. Make closely specified edits directly: delete the marked passage, replace a term, or follow wording the user sketches; minor polishing is fine. For generic feedback ('LLM slop', 'awkward', 'make this clearer') or substantial editorial choices, propose options and wait for Apply. When asking for approval, always offer 2–4 distinct alternatives. Put returned markdown in its own paragraph where each card belongs. Keep prose and notes brief; do not repeat the card. Use the smallest self-contained exact original occurring once in the workspace-relative file. Preserve balanced braces and complete formulas with both delimiters or matching begin/end tags in original and replacements. Leave the original unchanged until Apply. Applied options are already saved; read current source and check paper_status after edits.",
   parameters: Schema.Struct({
     file: Schema.String,
     original: Schema.String.check(Schema.isMinLength(1)),
-    options: Schema.Array(PaperProposalOption).check(Schema.isMinLength(1), Schema.isMaxLength(4)),
+    options: Schema.Array(PaperProposalOption).check(Schema.isMinLength(2), Schema.isMaxLength(4)),
     summary: Schema.optionalKey(Schema.String),
   }),
   success: Schema.Struct({

@@ -20,7 +20,7 @@ const encodeStatus = Schema.encodeEffect(PaperToolkit.tools.paper_status.success
 const decodeProposal = Schema.decodeEffect(PaperToolkit.tools.paper_propose_edits.parametersSchema);
 
 it.effect(
-  "accepts single-option proposals and returns the last five resolutions without chat chips",
+  "requires at least two alternatives for approval and returns the last five resolutions without chat chips",
   () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -72,6 +72,13 @@ it.effect(
       yield* Effect.gen(function* () {
         const mcp = yield* PaperMcpService.PaperMcpService;
         const paper = yield* PaperService.PaperService;
+        expect(
+          yield* decodeProposal({
+            file: "main.tex",
+            original: "Sentence 0.",
+            options: [{ latex: "A clearer sentence." }],
+          }).pipe(Effect.exit),
+        ).toMatchObject({ _tag: "Failure" });
         const proposals = yield* Effect.forEach(
           Array.from({ length: 8 }, (_, index) => index),
           (index) =>
@@ -79,10 +86,7 @@ it.effect(
               const input = yield* decodeProposal({
                 file: "main.tex",
                 original: `Sentence ${index}.`,
-                options:
-                  index === 0
-                    ? [{ latex: "A clearer sentence." }]
-                    : [{ latex: "A clearer sentence." }, { latex: "A shorter sentence." }],
+                options: [{ latex: "A clearer sentence." }, { latex: "A shorter sentence." }],
                 ...(index === 0 ? { summary: "Tighten this sentence" } : {}),
               });
               return yield* mcp.propose(threadId, input);
