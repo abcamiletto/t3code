@@ -7,6 +7,10 @@
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"
     },
+    "./forkIdentity": {
+      "types": "./src/forkIdentity.ts",
+      "import": "./src/forkIdentity.ts"
+    },
     "./authScopeOptions": {
       "types": "./src/authScopeOptions.ts",
       "import": "./src/authScopeOptions.ts"
