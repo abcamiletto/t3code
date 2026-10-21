@@ -1,3 +1,4 @@
+import { forkIdentity } from "@t3tools/shared/forkIdentity";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -91,10 +92,10 @@ export const make = Effect.gen(function* () {
 
   const configure = Effect.gen(function* () {
     const commitHash = yield* resolveAboutCommitHash;
-    // Electron strips spaces but keeps parentheses in its User-Agent token, breaking Turnstile in preview sessions.
-    yield* electronApp.setName(
-      `${environment.branding.baseName} ${environment.branding.stageLabel}`,
-    );
+    // Electron removes spaces from this name to build the native User-Agent
+    // product token, but leaves parentheses intact. Keep the runtime name valid
+    // without rewriting preview sessions (which breaks Turnstile, #7110).
+    yield* electronApp.setName(forkIdentity.name);
     yield* electronApp.setAboutPanelOptions({
       applicationName: environment.displayName,
       applicationVersion: environment.appVersion,

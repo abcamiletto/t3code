@@ -1,3 +1,4 @@
+import { forkIdentity } from "@t3tools/shared/forkIdentity";
 import {
   DESKTOP_UPDATE_RESTART_MARKER_FILE,
   DesktopUpdateChannelSchema,
@@ -338,6 +339,9 @@ function getAutoUpdateDisabledReason(args: {
   disabledByEnv: boolean;
   hasUpdateFeedConfig: boolean;
 }): string | null {
+  if (!forkIdentity.autoUpdatesEnabled) {
+    return `Automatic updates are disabled for ${forkIdentity.name}.`;
+  }
   if (args.policy.mode === "off") {
     return args.policy.message ?? "Updates are turned off on this machine.";
   }

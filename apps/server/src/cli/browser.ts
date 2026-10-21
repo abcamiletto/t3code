@@ -1,3 +1,4 @@
+import { forkIdentity } from "@t3tools/shared/forkIdentity";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
@@ -39,7 +40,10 @@ const runStep = Effect.fn("browserSetup.runStep")(function* (
   }
 });
 
-/** Under sudo, an unspecified home uses the invoking user's ~/.t3. */
+/**
+ * Under `sudo` the process home is root's, so an unspecified home falls back to
+ * the invoking user's T3 home.
+ */
 const setupBaseDir = Effect.fn("browserSetup.baseDir")(function* (explicit: Option.Option<string>) {
   const env = yield* HostProcess.Environment;
   const raw = Option.getOrUndefined(explicit) ?? env.T3CODE_HOME;
@@ -52,7 +56,7 @@ const setupBaseDir = Effect.fn("browserSetup.baseDir")(function* (explicit: Opti
     .pipe(Effect.orElseSucceed(() => ""));
   const home = entry.trim().split(":")[5];
   const path = yield* Path.Path;
-  return home ? path.join(home, ".t3") : yield* resolveBaseDir(undefined);
+  return home ? path.join(home, forkIdentity.homeDirectory) : yield* resolveBaseDir(undefined);
 });
 
 const aptOffers = Effect.fn("browserSetup.aptOffers")(function* (name: string) {

@@ -1,3 +1,10 @@
+import { vi } from "vite-plus/test";
+
+vi.mock("@t3tools/shared/forkIdentity", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@t3tools/shared/forkIdentity")>();
+  return { forkIdentity: { ...original.forkIdentity, autoUpdatesEnabled: true } };
+});
+
 import { assert, describe, it } from "@effect/vitest";
 import type {
   DesktopTelemetryRequestDesktopUpdate,
