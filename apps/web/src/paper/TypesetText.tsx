@@ -3,10 +3,19 @@ import "katex/dist/katex.min.css";
 import { Fragment } from "react";
 import { latexToDisplay, type DisplayNode } from "./latexDisplay";
 
-export function TypesetText({ latex }: { latex: string }) {
+export function TypesetText({
+  latex,
+  preamble = "",
+  error = null,
+}: {
+  latex: string;
+  preamble?: string;
+  error?: string | null;
+}) {
+  if (error) return <PreviewError source={latex} error={new Error(error)} />;
   let nodes: DisplayNode[];
   try {
-    nodes = latexToDisplay(latex);
+    nodes = latexToDisplay(latex, preamble);
   } catch (error) {
     return <PreviewError source={latex} error={error} />;
   }

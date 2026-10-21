@@ -2,8 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 import { latexToDisplay } from "./latexDisplay";
 
 describe("LaTeX display", () => {
-  it("retains nested emphasis and bold without displaying commands", () => {
-    expect(latexToDisplay(String.raw`An \emph{important \textbf{result}}.`)).toEqual([
+  it("expands project text macros with nested emphasis and bold", () => {
+    expect(
+      latexToDisplay(
+        String.raw`An \result{result}.`,
+        String.raw`\newcommand{\result}[1]{\emph{important \textbf{#1}}}`,
+      ),
+    ).toEqual([
       { kind: "text", text: "An " },
       {
         kind: "italic",
@@ -15,16 +20,19 @@ describe("LaTeX display", () => {
       { kind: "text", text: "." },
     ]);
   });
-  it("replaces references, keeps math, and removes simple commands", () => {
+  it("expands project math macros while retaining references and text", () => {
     expect(
-      latexToDisplay(String.raw`See~\ref{fig:x}, \citep[see]{key}: $x_1$ \textrm{works}.`),
+      latexToDisplay(
+        String.raw`See~\ref{fig:x}, \citep[see]{key}: $\com_1$ \textrm{works}.`,
+        String.raw`\newcommand{\pp}{\mathbf{p}}\newcommand{\com}{\bar{\pp}}`,
+      ),
     ).toEqual([
       { kind: "text", text: "See\u00a0" },
       { kind: "muted", text: "[ref]" },
       { kind: "text", text: ", " },
       { kind: "muted", text: "[cite]" },
       { kind: "text", text: ": " },
-      { kind: "math", text: "x_{1}", display: false },
+      { kind: "math", text: String.raw`\bar{\mathbf{p}}_{1}`, display: false },
       { kind: "text", text: " works." },
     ]);
   });

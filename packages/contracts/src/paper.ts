@@ -96,6 +96,10 @@ export const PaperState = Schema.Struct({
   cwd: Schema.String,
   isLatex: Schema.Boolean,
   mainFile: Schema.NullOr(Schema.String),
+  preview: Schema.Struct({
+    preamble: Schema.String,
+    error: Schema.NullOr(Schema.String),
+  }),
   build: PaperBuild,
   proposals: Schema.Array(PaperProposal),
 });

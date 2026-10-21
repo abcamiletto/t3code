@@ -822,6 +822,12 @@ importers:
 
   apps/server:
     dependencies:
+      "@unified-latex/unified-latex-util-parse":
+        specifier: ^1.8.4
+        version: 1.8.4
+      "@unified-latex/unified-latex-util-print-raw":
+        specifier: ^1.8.4
+        version: 1.8.4
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.276
         version: 0.3.276(@anthropic-ai/sdk@0.93.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(zod@4.6.5)
@@ -976,6 +982,9 @@ importers:
 
   apps/web:
     dependencies:
+      "@unified-latex/unified-latex-util-macros":
+        specifier: ^1.8.4
+        version: 1.8.4
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.5.0(@date-fns/tz@1.5.0)(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -12718,6 +12727,10 @@ packages:
     peerDependencies:
       '@types/emscripten': '>=1.39.6'
 
+  "@unified-latex/unified-latex-util-macros@1.8.4":
+    resolution:
+      integrity: sha512-nFPP3qbPIMWoRPfg4+GuLsLt01XpZddOm4Bk8iD0aAWxnpSk3AEFVZEfQ0dpWGCSKawX+cJZNUiG6D9m4Oqtng==
+
 snapshots:
 
   2g@1.0.1(typescript@7.0.2):
@@ -24128,3 +24141,14 @@ snapshots:
     dependencies:
       '@types/emscripten': 1.41.5
       type-fest: 5.7.0
+
+  "@unified-latex/unified-latex-util-macros@1.8.4":
+    dependencies:
+      "@unified-latex/unified-latex-types": 1.8.4
+      "@unified-latex/unified-latex-util-arguments": 1.8.4
+      "@unified-latex/unified-latex-util-match": 1.8.4
+      "@unified-latex/unified-latex-util-parse": 1.8.4
+      "@unified-latex/unified-latex-util-pegjs": 1.8.4
+      "@unified-latex/unified-latex-util-print-raw": 1.8.4
+      "@unified-latex/unified-latex-util-replace": 1.8.4
+      "@unified-latex/unified-latex-util-visit": 1.8.4

@@ -1,23 +1,42 @@
 import type * as Ast from "@unified-latex/unified-latex-types";
 import * as LatexParser from "@unified-latex/unified-latex-util-parse";
 import * as LatexSource from "@unified-latex/unified-latex-util-print-raw";
+import * as LatexMacros from "@unified-latex/unified-latex-util-macros";
 
 export type DisplayNode =
   | { kind: "text" | "muted" | "source"; text: string }
   | { kind: "math"; text: string; display: boolean }
   | { kind: "italic" | "bold"; children: DisplayNode[] };
 
-const parser = LatexParser.getParser({
-  macros: Object.fromEntries(
-    ["citep", "citet", "citealp", "citealt", "cref", "Cref", "autoref"].map((name) => [
-      name,
-      { signature: "s o o m" },
-    ]),
-  ),
-});
+const standardMacros = Object.fromEntries(
+  ["citep", "citet", "citealp", "citealt", "cref", "Cref", "autoref"].map((name) => [
+    name,
+    { signature: "s o o m" },
+  ]),
+);
+const parser = LatexParser.getParser({ macros: standardMacros });
 
-export function latexToDisplay(latex: string): DisplayNode[] {
-  return displayNodes(parser.parse(latex).content);
+export function latexToDisplay(latex: string, preamble = ""): DisplayNode[] {
+  const definitions = LatexMacros.listNewcommands(parser.parse(preamble));
+  const projectParser =
+    definitions.length === 0
+      ? parser
+      : LatexParser.getParser({
+          macros: {
+            ...standardMacros,
+            ...Object.fromEntries(definitions.map(({ name, signature }) => [name, { signature }])),
+          },
+        });
+  for (let expansion = 0; expansion < 100; expansion++) {
+    const tree = projectParser.parse(latex);
+    const before = LatexSource.printRaw(tree);
+    LatexMacros.expandMacrosExcludingDefinitions(tree, definitions);
+    const after = LatexSource.printRaw(tree);
+    if (after === before) return displayNodes(tree.content);
+    // Reparse expanded arguments and commands in their new math/text context.
+    latex = after;
+  }
+  throw new Error("Project macros did not finish expanding.");
 }
 
 function displayNodes(content: readonly Ast.Node[]): DisplayNode[] {
