@@ -1,14 +1,13 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { observeResize } from "~/lib/observeResize";
 import { Button } from "~/components/ui/button";
 import { useEnvironmentQuery } from "~/state/query";
 import { PdfPage } from "./PdfPage";
 import { readPaperDocument, type PaperDocument } from "./pdf";
 import { paperEnvironment } from "./state";
 
-const scale = 1.6;
-
-export function ProposalPreview({
+export function CompiledPreview({
   latex,
   environmentId,
   cwd,
@@ -23,6 +22,12 @@ export function ProposalPreview({
   optionIndex: number | null;
   revision: number;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(
+    () => observeResize(container.current!, ([entry]) => setWidth(entry!.contentRect.width)),
+    [],
+  );
   const [preview, setPreview] = useState<
     | ({ source: string; updatedAt: number } & ({ document: PaperDocument } | { error: string }))
     | null
@@ -73,7 +78,7 @@ export function ProposalPreview({
     (errors.length > 0 ? errors.map((entry) => entry.message).join("\n") : null) ??
     (current && "error" in current ? current.error : null);
   return (
-    <div className="min-w-0">
+    <div ref={container} className="min-w-0">
       {!latex.trim() ? (
         <span className="text-xs text-muted-foreground">Passage removed.</span>
       ) : error ? (
@@ -88,28 +93,33 @@ export function ProposalPreview({
         </div>
       ) : current && "document" in current ? (
         <div className="overflow-x-auto" aria-label="Compiled LaTeX preview">
-          {current.document.sizes.map((size, index) => (
-            <div
-              key={`${current.document.id}:${index + 1}`}
-              className="relative"
-              style={{ width: size.width * scale, height: size.height * scale }}
-            >
-              <PdfPage
-                pdf={current.document.pdf}
-                page={index + 1}
-                layout={{ width: size.width * scale, height: size.height * scale, scale, top: 0 }}
-                onReady={() => {}}
-                onError={(error) =>
-                  setPreview({
-                    source: current.source,
-                    updatedAt: current.updatedAt,
-                    error:
-                      error instanceof Error ? error.message : "Could not render the preview PDF.",
-                  })
-                }
-              />
-            </div>
-          ))}
+          {current.document.sizes.map((size, index) => {
+            const scale = Math.min(1.6, width / size.width);
+            return (
+              <div
+                key={`${current.document.id}:${index + 1}`}
+                className="relative"
+                style={{ width: size.width * scale, height: size.height * scale }}
+              >
+                <PdfPage
+                  pdf={current.document.pdf}
+                  page={index + 1}
+                  layout={{ width: size.width * scale, height: size.height * scale, scale, top: 0 }}
+                  onReady={() => {}}
+                  onError={(error) =>
+                    setPreview({
+                      source: current.source,
+                      updatedAt: current.updatedAt,
+                      error:
+                        error instanceof Error
+                          ? error.message
+                          : "Could not render the preview PDF.",
+                    })
+                  }
+                />
+              </div>
+            );
+          })}
         </div>
       ) : (
         <span role="status" className="text-xs text-muted-foreground">

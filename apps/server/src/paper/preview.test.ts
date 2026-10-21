@@ -52,7 +52,7 @@ it.layer(NodeServices.layer)("proposal previews", (it) => {
                     tex_format: "latex",
                     inputs: [
                       expect.objectContaining({
-                        inline: expect.stringContaining(String.raw`\begin{minipage}{\textwidth}`),
+                        inline: expect.stringContaining(String.raw`\begin{minipage}{28em}`),
                       }),
                       ...inputs,
                     ],

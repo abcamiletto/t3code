@@ -49,7 +49,7 @@ export const compilePreview = Effect.fn("PaperService.compilePreview")(
     // preview.sty handles cropping; the TeX engine handles macros, conditionals and fonts.
     const hook = String.raw`\AddToHook{begindocument/before}{\RequirePackage[active,tightpage]{preview}}
 \AddToHook{begindocument/end}{
-\begin{preview}\begin{minipage}{\textwidth}
+\begin{preview}\begin{minipage}{28em}
 ${latex}
 \end{minipage}\end{preview}\end{document}}
 `;

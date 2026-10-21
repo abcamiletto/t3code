@@ -163,17 +163,30 @@ it("keeps comments open while typing and reveals proposals at their PDF passage"
         "Choose a rewrite",
       );
     });
-    const proposedPane = document.querySelector<HTMLElement>('[aria-label="Proposed text"] > div')!;
-    await vi.waitFor(() => {
-      expect(proposedPane.querySelector("canvas")).not.toBeNull();
-      expect(proposedPane.scrollHeight).toBeGreaterThan(proposedPane.clientHeight);
-    });
+    const proposedPane = document.querySelector<HTMLElement>(
+      '[aria-label="Proposed text"] > div:last-of-type',
+    )!;
+    expect(proposedPane.querySelector("canvas")).toBeNull();
+    expect(document.body.textContent).not.toContain("Typesetting preview…");
+    expect(proposedPane.textContent).toContain("Project notation is shown as LaTeX.");
+    expect(proposedPane.scrollHeight).toBeGreaterThan(proposedPane.clientHeight);
     await userEvent.click(page.getByRole("button", { name: "Option B", exact: true }));
-    await vi.waitFor(() =>
-      expect(
-        proposedPane.querySelector('[aria-label="Compiled LaTeX preview"] canvas'),
-      ).not.toBeNull(),
+    expect(document.querySelector('[aria-label="Proposed text"] h3')?.textContent).toContain(
+      "Option B",
     );
+    expect(proposedPane.querySelector(".katex")).not.toBeNull();
+    expect(proposedPane.querySelector("canvas")).toBeNull();
+    await userEvent.click(page.getByRole("button", { name: "Typeset", exact: true }));
+    await vi.waitFor(() => {
+      const canvas = proposedPane.querySelector("canvas");
+      expect(canvas).not.toBeNull();
+      expect(canvas!.getBoundingClientRect().width).toBeGreaterThan(0);
+      expect(canvas!.getBoundingClientRect().width).toBeLessThanOrEqual(proposedPane.clientWidth);
+    });
+    await userEvent.click(page.getByRole("button", { name: "Original", exact: true }));
+    expect(document.querySelector('[aria-label="Original text"] h3')?.textContent).toBe("Before");
+    expect(document.querySelector('[aria-label="Original text"] canvas')).toBeNull();
+    expect(document.body.textContent).not.toContain("Typesetting preview…");
     await userEvent.keyboard("{Escape}");
     await vi.waitFor(() =>
       expect(document.querySelector('[data-slot="popover-popup"]')).toBeNull(),

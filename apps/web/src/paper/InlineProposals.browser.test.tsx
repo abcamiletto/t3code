@@ -112,6 +112,15 @@ it("places multiple option cards between paragraphs and applies the chosen optio
     },
   });
   expect(container.textContent).toContain("Refinement loopapplied");
+  await userEvent.click(page.getByRole("button", { name: "Refinement loop", exact: true }));
+  await userEvent.click(page.getByRole("button", { name: "Option A", exact: true }).first());
+  expect(container.querySelector('[aria-label="Proposed text"] h3')?.textContent).toContain(
+    "Option A",
+  );
+  await expect
+    .element(page.getByRole("button", { name: "Apply option A", exact: true }).first())
+    .toBeDisabled();
+  expect(fixture.resolve).toHaveBeenCalledTimes(1);
   await userEvent.click(page.getByRole("button", { name: "View in PDF", exact: true }).first());
   expect(usePaperReveal.getState().requests[scopedThreadKey(threadRef)]?.proposalId).toBe(
     "proposal-0",

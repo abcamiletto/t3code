@@ -8,7 +8,8 @@ import { Toggle, ToggleGroup } from "~/components/ui/toggle-group";
 import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
 import { dispatchSnapShotComposerFocus } from "~/lib/desktopSnapShot";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { ProposalPreview } from "./ProposalPreview";
+import { CompiledPreview } from "./CompiledPreview";
+import { LatexPreview } from "./LatexPreview";
 import { PaperIconButton } from "./PaperIconButton";
 import { PAPER_SECTIONS, paperReviewComment } from "./reviewComment";
 import { paperEnvironment } from "./state";
@@ -47,15 +48,17 @@ export function ProposalCard({
   const [busy, setBusy] = useState(false);
   const [resolved, setResolved] = useState<PaperProposal | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [originalOpen, setOriginalOpen] = useState(!compact);
+  const [expanded, setExpanded] = useState(false);
+  const [compiled, setCompiled] = useState(false);
   const resolve = useAtomCommand(paperEnvironment.resolveProposal, { reportFailure: false });
   const canResolve = useAtomValue(
     paperEnvironment.resolveProposal.permissionAtom(threadRef.environmentId),
   );
   const addComment = useComposerDraftStore((state) => state.addReviewComment);
   const current = resolved ?? proposal;
-  const choice = current.status === "applied" ? (current.appliedOptionIndex ?? selected) : selected;
-  const option = proposal.options[choice]!;
+  const option = proposal.options[selected];
+  const original = selected === -1;
+  const latex = original ? proposal.original : option!.latex;
   const multipleOptions = proposal.options.length > 1;
   const actionable = canResolve && !busy && current.status === "pending";
   const locationAction = showLocation && (
@@ -106,13 +109,15 @@ export function ProposalCard({
     dispatchSnapShotComposerFocus();
   };
 
-  if (current.status !== "pending" && compact) {
+  if (current.status !== "pending" && compact && !expanded) {
     const Icon =
       current.status === "applied" ? CircleCheck : current.status === "stale" ? Clock3 : CircleX;
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Icon className="size-3.5" />
-        <span className="truncate">{current.summary ?? "Proposal"}</span>
+        <Button size="micro" variant="ghost" onClick={() => setExpanded(true)}>
+          {current.summary ?? "Review options"}
+        </Button>
         <span className="ml-auto capitalize">{current.status}</span>
         {locationAction}
       </div>
@@ -127,12 +132,12 @@ export function ProposalCard({
         if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement)
           return;
         if (event.metaKey || event.ctrlKey || event.altKey || event.nativeEvent.isComposing) return;
-        if (current.status !== "pending") return;
         const index = Number(event.key) - 1;
         if (/^[1-4]$/.test(event.key) && index < proposal.options.length) {
           event.preventDefault();
           setSelected(index);
-        } else if (event.key === "Enter" && actionable) {
+          setCompiled(false);
+        } else if (event.key === "Enter" && actionable && !original) {
           if (event.target instanceof Element && event.target.closest('button:not([role="radio"])'))
             return;
           event.preventDefault();
@@ -148,64 +153,83 @@ export function ProposalCard({
           <span className="text-xs capitalize text-muted-foreground">{current.status}</span>
         )}
         {locationAction}
-        {onClose && (
-          <PaperIconButton label="Close proposal" onClick={onClose}>
+        {(onClose || expanded) && (
+          <PaperIconButton label="Close proposal" onClick={onClose ?? (() => setExpanded(false))}>
             <X />
           </PaperIconButton>
         )}
       </div>
-      {compact && (
-        <div>
+      <ToggleGroup
+        aria-label="Preview"
+        value={[String(selected)]}
+        onValueChange={([value]) => {
+          if (value !== undefined) {
+            setSelected(Number(value));
+            setCompiled(false);
+          }
+        }}
+      >
+        <Toggle value="-1">Original</Toggle>
+        {proposal.options.map((alternative, index) => (
+          <Toggle key={alternative.latex} value={String(index)}>
+            Option {optionLetter(index)}
+          </Toggle>
+        ))}
+      </ToggleGroup>
+      <section
+        className="flex min-w-0 flex-col gap-2"
+        aria-label={original ? "Original text" : "Proposed text"}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h3
+            className={
+              original
+                ? "text-xs font-medium text-destructive"
+                : "text-xs font-medium text-success-foreground"
+            }
+          >
+            {original ? "Before" : `After · Option ${optionLetter(selected)}`}
+            {current.status === "applied" &&
+              current.appliedOptionIndex === selected &&
+              " · Applied"}
+          </h3>
           <Button
             size="micro"
             variant="ghost"
-            aria-expanded={originalOpen}
-            onClick={() => setOriginalOpen((open) => !open)}
+            aria-pressed={compiled}
+            onClick={() => setCompiled((value) => !value)}
           >
-            Original
+            {compiled ? "Text preview" : "Typeset"}
           </Button>
         </div>
-      )}
-      {multipleOptions && (
-        <ToggleGroup
-          aria-label="Options"
-          disabled={current.status !== "pending"}
-          value={[String(choice)]}
-          onValueChange={([value]) => {
-            if (value !== undefined) setSelected(Number(value));
-          }}
+        <div
+          className={
+            original
+              ? "max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm leading-relaxed"
+              : "max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-sm leading-relaxed"
+          }
         >
-          {proposal.options.map((alternative, index) => (
-            <Toggle key={alternative.latex} value={String(index)}>
-              Option {optionLetter(index)}
-            </Toggle>
-          ))}
-        </ToggleGroup>
-      )}
-      <div
-        className={compact ? "flex min-h-0 flex-col gap-3" : "grid min-h-0 gap-3 sm:grid-cols-2"}
-      >
-        {originalOpen && (
-          <section className="flex min-w-0 flex-col gap-2" aria-label="Original text">
-            <h3 className="text-xs font-medium text-destructive">Before</h3>
-            <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-destructive/25 bg-destructive/5 p-3 text-base leading-relaxed wrap-anywhere">
-              <ProposalPreview latex={proposal.original} optionIndex={null} {...preview} />
+          {compiled ? (
+            <div className="bg-white p-2">
+              <CompiledPreview
+                latex={latex}
+                optionIndex={original ? null : selected}
+                {...preview}
+              />
             </div>
-          </section>
+          ) : (
+            <LatexPreview latex={latex} />
+          )}
+        </div>
+        {compiled && (
+          <p className="text-xs text-muted-foreground">
+            Equation numbers and references are local to this preview.
+          </p>
         )}
-        <section className="flex min-w-0 flex-col gap-2" aria-label="Proposed text">
-          <h3 className="text-xs font-medium text-success-foreground">
-            {multipleOptions ? `After · Option ${optionLetter(choice)}` : "After"}
-          </h3>
-          <div className="max-h-[min(48vh,28rem)] overflow-auto rounded-md border border-success/25 bg-success/5 p-3 text-base leading-relaxed wrap-anywhere">
-            <ProposalPreview latex={option.latex} optionIndex={choice} {...preview} />
-          </div>
-          {option.note && <p className="text-xs text-muted-foreground">{option.note}</p>}
-        </section>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Equation numbers and references are local to each preview.
-      </p>
+        {!original && option?.note && (
+          <p className="text-xs text-muted-foreground">{option.note}</p>
+        )}
+      </section>
       <div className="flex items-center justify-end gap-2">
         <Button
           size="xs"
@@ -218,11 +242,15 @@ export function ProposalCard({
         <Button
           size="xs"
           variant="secondary"
-          disabled={!actionable}
+          disabled={!actionable || original}
           onClick={() => void submit({ type: "apply", optionIndex: selected })}
         >
           <Check />
-          {multipleOptions ? `Apply option ${optionLetter(choice)}` : "Apply"}
+          {original
+            ? "Choose an option"
+            : multipleOptions
+              ? `Apply option ${optionLetter(selected)}`
+              : "Apply"}
         </Button>
       </div>
       <textarea

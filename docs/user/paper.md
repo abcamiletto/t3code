@@ -68,15 +68,16 @@ drag to select text and comment on it. Use **View in PDF** in the chat to jump t
 open its popup. New proposals open there automatically while you are working in Paper. If the passage
 cannot be located in the current PDF, the proposal stays available in the chat.
 
-The popup shows the original and one selected alternative side by side. Switch options at the top;
-long passages scroll inside each text pane. Red marks the original; green marks the proposed text.
+Switch between **Original** and the options at the top. Long passages scroll inside the preview.
+Red marks the original; green marks the proposed text. You can revisit alternatives after applying a choice.
 
 Agents can also place interactive option cards directly in their replies, between short explanations.
 Choose and apply an option there, or use **View in PDF** to review the passage on the paper.
 
-Proposal previews are compiled by Tectonic with your project’s packages, macros and compiler settings.
-They keep the paper’s text width; scroll horizontally to inspect wider content. A compilation failure
-shows the error and LaTeX source. The full paper PDF remains the reference for final layout.
+Options open instantly using the app’s text and math styling. Project notation that cannot be rendered
+is shown as LaTeX. Choose **Typeset** to check an option with your project’s packages, macros and
+Tectonic settings; switching options returns to the instant preview. A compilation failure shows the
+error and source. The full paper PDF remains the reference for final layout.
 
 - Click **Apply** to update the `.tex` file and rebuild the PDF. The proposal is marked applied;
   nothing is added to your message draft and no extra agent turn is needed.
