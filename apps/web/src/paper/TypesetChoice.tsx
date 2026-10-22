@@ -13,7 +13,7 @@ const SCALE = 1.5;
 
 /**
  * A choice as the paper typesets it: a page cut to its text, made with the paper's preamble when
- * the agent proposed it. It falls back to the source diff when there is nothing to show.
+ * the agent proposed it. It shows the source diff when there is nothing to typeset.
  */
 export function TypesetChoice(props: {
   readonly threadRef: ScopedThreadRef;
@@ -32,8 +32,13 @@ export function TypesetChoice(props: {
   // Each file is written once, so it needs no cache-busting revision.
   const url = usePaperFileUrl(threadRef, cwd, threadRef, ready?.pdf ?? null, 0);
   const { document, failed } = usePaperDocument(url);
-  // Nothing until the answer arrives, so the card does not show the source first.
-  if (!typeset.data && !typeset.error) return null;
+  // The diff stays, dimmed, until the choices are typeset.
+  if (!typeset.data && !typeset.error)
+    return (
+      <div aria-busy className="opacity-50">
+        <ProposalDiff proposal={proposal} choice={choice} />
+      </div>
+    );
   const index = choice === null ? 0 : choice + 1;
   const page = ready?.pages[index];
   if (!page || failed || !choiceText(proposal, choice).trim() || page.error)
