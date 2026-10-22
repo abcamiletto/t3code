@@ -16,8 +16,8 @@ interface PaperReviewState {
   readonly choices: Readonly<Record<string, PaperChoice>>;
   /** Chat cards unmount when they scroll away; they reopen as they were left. */
   readonly expanded: Readonly<Record<string, boolean>>;
-  /** Chat cards show the source as a diff instead of the typeset text. */
-  readonly source: boolean;
+  /** Chat cards that show their choices typeset instead of the source diff. */
+  readonly typeset: Readonly<Record<string, boolean>>;
   /**
    * The last typeset version of each proposal's choices, shown while a rebuild typesets it again
    * instead of falling back to the original text.
@@ -36,7 +36,7 @@ export const usePaperReview = create<PaperReviewState>(() => ({
   focused: {},
   choices: {},
   expanded: {},
-  source: false,
+  typeset: {},
   previews: {},
   comments: {},
 }));
@@ -58,8 +58,8 @@ export function setExpanded(proposalId: string, expanded: boolean) {
   usePaperReview.setState((state) => ({ expanded: { ...state.expanded, [proposalId]: expanded } }));
 }
 
-export function showSource(source: boolean) {
-  usePaperReview.setState({ source });
+export function showTypeset(proposalId: string, typeset: boolean) {
+  usePaperReview.setState((state) => ({ typeset: { ...state.typeset, [proposalId]: typeset } }));
 }
 
 export const previewKey = (proposalId: string, choice: PaperChoice) => `${proposalId}:${choice}`;

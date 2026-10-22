@@ -41,7 +41,12 @@ interface Compilation {
  * A Tectonic that writes a PDF, SyncTeX, `.aux` and log, or the log of a failed run. A snippet
  * gets a 100 by 20 point page for each choice, and an error on each line that reads `\\broken`.
  */
-const fakeTectonic = (calls: Compilation[], installed: boolean, fail: () => boolean) =>
+const fakeTectonic = (
+  calls: Compilation[],
+  snippets: Compilation[],
+  installed: boolean,
+  fail: () => boolean,
+) =>
   Layer.effect(
     ProcessRunner.ProcessRunner,
     Effect.gen(function* () {
@@ -65,7 +70,7 @@ const fakeTectonic = (calls: Compilation[], installed: boolean, fail: () => bool
               ? Effect.gen(function* () {
                   const file = request.args.at(-1)!;
                   const tex = yield* fs.readFileString(file);
-                  calls.push({ cwd: request.cwd!, main: tex, args: request.args, aux: null });
+                  snippets.push({ cwd: request.cwd!, main: tex, args: request.args, aux: null });
                   const pages = tex.split("\\shipout").length - 1;
                   yield* fs.writeFileString(
                     file.replace(/\.tex$/, ".log"),
@@ -132,16 +137,18 @@ const setup = (options: { fail?: () => boolean; installed?: boolean } = {}) =>
     const cwd = yield* fs.realPath(yield* fs.makeTempDirectoryScoped({ prefix: "paper-test-" }));
     yield* fs.writeFileString(path.join(cwd, "main.tex"), DOCUMENT);
     const calls: Compilation[] = [];
+    // Proposing typesets the choices in the background, so they are counted apart from builds.
+    const snippets: Compilation[] = [];
     const context = yield* Layer.build(
       PaperService.layer.pipe(
         Layer.provide(
-          fakeTectonic(calls, options.installed ?? true, options.fail ?? (() => false)),
+          fakeTectonic(calls, snippets, options.installed ?? true, options.fail ?? (() => false)),
         ),
       ),
     );
     const paper = Context.get(context, PaperService.PaperService);
     const read = (file: string) => fs.readFileString(path.join(cwd, file));
-    return { cwd, paper, calls, read, fs, path };
+    return { cwd, paper, calls, snippets, read, fs, path };
   });
 
 it.layer(NodeServices.layer)("PaperService", (it) => {
@@ -304,9 +311,8 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
 
   it.effect("typesets each choice of a proposal on its own page, once", () =>
     Effect.gen(function* () {
-      const { cwd, paper, calls, fs, path } = yield* setup();
+      const { cwd, paper, snippets, fs, path } = yield* setup();
       yield* paper.current(cwd, THREAD);
-      const builds = calls.length;
       const proposal = yield* paper.propose({
         cwd,
         threadId: THREAD,
@@ -314,16 +320,14 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
         original: SENTENCE,
         options: [...OPTIONS, { latex: "\\broken" }],
       });
-      // Proposing typesets the choices, so the card has them when the tool call returns.
-      expect(calls).toHaveLength(builds + 1);
-      const snippet = calls.at(-1)!;
-      expect(snippet.main).toContain("\\documentclass{article}");
-      expect(snippet.main).toContain("A shorter one.");
-      // As wide as the passage's line in the paper.
-      expect(snippet.main).toContain("\\hsize=300.000bp");
-
+      // Proposing starts the typesetting; asking for it waits for that run instead of repeating it.
       const typeset = yield* paper.typesetProposal({ cwd, proposalId: proposal.id });
-      expect(calls).toHaveLength(builds + 1);
+      expect(yield* paper.typesetProposal({ cwd, proposalId: proposal.id })).toEqual(typeset);
+      expect(snippets).toHaveLength(1);
+      expect(snippets[0]!.main).toContain("\\documentclass{article}");
+      expect(snippets[0]!.main).toContain("A shorter one.");
+      // As wide as the passage's line in the paper.
+      expect(snippets[0]!.main).toContain("\\hsize=300.000bp");
       const page = { width: 100 * (72 / 72.27), height: 20 * (72 / 72.27), error: null };
       expect(typeset).toEqual({
         status: "ready",

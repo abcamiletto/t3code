@@ -1,9 +1,8 @@
 import type { PaperProposal, PaperProposalReference, ScopedThreadRef } from "@t3tools/contracts";
-import { ChevronDown, Code, FileText } from "lucide-react";
+import { ChevronDown, FileText } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Toggle } from "~/components/ui/toggle";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useEnvironmentQuery } from "~/state/query";
 import {
   choiceLabel,
@@ -13,7 +12,7 @@ import {
   useProposalChoice,
 } from "./ProposalParts";
 import { ProposalFooter } from "./ProposalFooter";
-import { openPaper, setExpanded, showSource, usePaperReview } from "./review";
+import { openPaper, setExpanded, showTypeset, usePaperReview } from "./review";
 import { paperEnvironment } from "./state";
 import { TypesetChoice } from "./TypesetChoice";
 import { useProposalActions } from "./useProposalActions";
@@ -53,7 +52,7 @@ function LoadedProposalCard(props: {
   const actions = useProposalActions(threadRef, reference.cwd, proposal);
   const resolved = proposal.status !== "pending";
   const expanded = usePaperReview((state) => state.expanded[proposal.id] ?? !resolved);
-  const source = usePaperReview((state) => state.source);
+  const typeset = usePaperReview((state) => state.typeset[proposal.id] ?? false);
   const stale = proposal.status === "stale";
   const status = proposalStatusLabel(proposal);
   const location =
@@ -102,33 +101,25 @@ function LoadedProposalCard(props: {
               {location}
             </span>
             {stale ? null : (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Toggle
-                      size="xs"
-                      variant="ghost"
-                      aria-label="LaTeX source"
-                      pressed={source}
-                      onPressedChange={showSource}
-                    />
-                  }
-                >
-                  <Code />
-                </TooltipTrigger>
-                <TooltipPopup>LaTeX source</TooltipPopup>
-              </Tooltip>
+              <Toggle
+                size="xs"
+                variant="ghost"
+                pressed={typeset}
+                onPressedChange={(pressed) => showTypeset(proposal.id, pressed)}
+              >
+                Typeset
+              </Toggle>
             )}
           </div>
-          {source || stale ? (
-            <ProposalDiff proposal={proposal} choice={choice} />
-          ) : (
+          {typeset && !stale ? (
             <TypesetChoice
               threadRef={threadRef}
               cwd={reference.cwd}
               proposal={proposal}
               choice={choice}
             />
+          ) : (
+            <ProposalDiff proposal={proposal} choice={choice} />
           )}
           {choice !== null && proposal.options[choice]?.note ? (
             <p className="text-xs text-muted-foreground">
