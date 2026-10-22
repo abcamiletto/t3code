@@ -29,19 +29,18 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "~/components/u
 import { Spinner } from "~/components/ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
-import { randomUUID } from "~/lib/utils";
-import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { formatEnvironmentQueryError, useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { usePaperDocument, type PaperDocument } from "./pdfDocument";
 import { PdfView, type PdfMark, type PdfTextSelection } from "./PdfView";
+import { pdfComment } from "./comments";
 import { matchPassage, readTextRuns } from "./passage";
+import { ProposalFooter } from "./ProposalFooter";
 import {
   choiceLabel,
   choiceText,
   currentChoice,
-  ProposalActions,
   ProposalChoices,
   proposalStatusLabel,
   useProposalChoice,
@@ -59,8 +58,6 @@ import { SelectionComment } from "./SelectionComment";
 import { paperEnvironment } from "./state";
 import { useProposalActions } from "./useProposalActions";
 
-// Agents read the section title with the comment; it names the tool for open-ended requests.
-const COMMENT_TITLE = "Paper comment (offer open-ended rewrites with paper_propose_edits)";
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 interface PanelProps {
@@ -206,22 +203,7 @@ function PaperWorkspace(props: PanelProps & { readonly state: PaperState }) {
       input: { cwd, boxes: selection.boxes },
     });
     if (result._tag === "Failure") return formatEnvironmentQueryError(result.cause);
-    const range = result.value;
-    const reviewComment: ReviewCommentContext = {
-      id: randomUUID(),
-      sectionId: `paper:${range.file}`,
-      sectionTitle: COMMENT_TITLE,
-      filePath: range.file,
-      startIndex: range.startLine - 1,
-      endIndex: range.endLine - 1,
-      rangeLabel:
-        range.startLine === range.endLine
-          ? `L${range.startLine}`
-          : `L${range.startLine} to L${range.endLine}`,
-      text: `${draft.trim()}\n\nSelected in the PDF: “${selection.text.replace(/\s+/g, " ").trim()}”`,
-      diff: range.source,
-      fenceLanguage: "latex",
-    };
+    const reviewComment = pdfComment(result.value, draft, selection.text);
     addReviewComment(composerDraftTarget, reviewComment, { insertAtCaret: false });
     markComment(reviewComment.id, { revision: build.revision, boxes: selection.boxes });
     window.getSelection()?.removeAllRanges();
@@ -327,6 +309,7 @@ function PaperWorkspace(props: PanelProps & { readonly state: PaperState }) {
       {focused ? (
         <ProposalReview
           threadRef={threadRef}
+          composerDraftTarget={composerDraftTarget}
           cwd={cwd}
           proposals={state.proposals}
           proposal={focused}
@@ -603,6 +586,7 @@ function Problems(props: {
 
 function ProposalReview(props: {
   readonly threadRef: ScopedThreadRef;
+  readonly composerDraftTarget: ScopedThreadRef | DraftId;
   readonly cwd: string;
   readonly proposals: readonly PaperProposal[];
   readonly proposal: PaperProposal;
@@ -677,14 +661,12 @@ function ProposalReview(props: {
           </span>
         </div>
       )}
-      <footer className="flex items-center justify-end gap-1">
-        {actions.error ? (
-          <p role="alert" className="mr-auto text-xs text-destructive">
-            {actions.error}
-          </p>
-        ) : null}
-        <ProposalActions proposal={proposal} choice={choice} actions={actions} />
-      </footer>
+      <ProposalFooter
+        proposal={proposal}
+        choice={choice}
+        actions={actions}
+        composerDraftTarget={props.composerDraftTarget}
+      />
     </section>
   );
 }
