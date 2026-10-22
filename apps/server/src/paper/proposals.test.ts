@@ -38,11 +38,20 @@ describe("reconcile", () => {
 
   it("keeps an applied option applied until the original returns", () => {
     const deleted = { ...proposal, status: "applied" as const, appliedOption: 1 };
-    expect(reconcile(deleted, source(""))).toEqual({ status: "applied" });
+    expect(reconcile(deleted, source(""))).toEqual({ status: "applied", appliedOption: 1 });
     expect(reconcile(deleted, source("An original sentence.")).status).toBe("pending");
     const edited = { ...proposal, status: "applied" as const, appliedOption: 0 };
     expect(reconcile(edited, source("A clearer sentence, edited again."))).toEqual({
       status: "applied",
+      appliedOption: 0,
+    });
+  });
+
+  it("recognizes an option written into the file without Apply", () => {
+    expect(reconcile(proposal, source("A clearer sentence."))).toEqual({
+      status: "applied",
+      appliedOption: 0,
+      range: { start: 18, startLine: 3, endLine: 3 },
     });
   });
 
