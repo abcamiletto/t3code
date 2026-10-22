@@ -27,6 +27,7 @@ const PreviewPanel = lazy(() =>
   import("../preview/PreviewPanel").then((module) => ({ default: module.PreviewPanel })),
 );
 const DiffPanel = lazy(() => import("../DiffPanel"));
+const PaperPanel = lazy(() => import("../../paper/PaperPanel"));
 const DevicePanel = lazy(() =>
   import("../device/DevicePanel").then((module) => ({ default: module.DevicePanel })),
 );
@@ -101,6 +102,18 @@ export function RightPanelSurfaceContent(props: {
           surface={surface}
         />
       );
+    case "paper":
+      // Hidden tabs keep no PDF in memory and no build subscription open.
+      return visible && props.files.workspaceRoot ? (
+        <Suspense fallback={null}>
+          <PaperPanel
+            key={`${scopedThreadKey(threadRef)}:${props.files.workspaceRoot}`}
+            threadRef={threadRef}
+            cwd={props.files.workspaceRoot}
+            composerDraftTarget={props.composerDraftTarget}
+          />
+        </Suspense>
+      ) : null;
     case "diff":
       return (
         <Suspense fallback={null}>

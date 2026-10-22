@@ -34,6 +34,7 @@ import {
   Files,
   Globe2,
   Plus,
+  ScrollText,
   TerminalSquare,
 } from "lucide-react";
 import { Volume2, VolumeOff } from "lucide";
@@ -126,6 +127,7 @@ export interface RightPanelTabsProps {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddFiles: () => void;
+  onAddPaper: () => void;
   onAddPullRequest: () => void;
   onAddPullRequests: () => void;
   onAddDevice: () => void;
@@ -300,6 +302,7 @@ function RightPanelEmptyState(props: {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddFiles: () => void;
+  onAddPaper: () => void;
   onAddPullRequest: () => void;
   onAddPullRequests: () => void;
   onAddDevice: () => void;
@@ -337,6 +340,14 @@ function RightPanelEmptyState(props: {
       available: props.filesAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.files,
       onClick: props.onAddFiles,
+    },
+    {
+      label: "Paper",
+      icon: ScrollText,
+      shortcut: "R",
+      available: props.filesAvailable,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.files,
+      onClick: props.onAddPaper,
     },
     {
       label: "Diff",
@@ -536,6 +547,8 @@ function surfaceTitle(
   terminalLabelsById: ReadonlyMap<string, string>,
 ): string {
   switch (surface.kind) {
+    case "paper":
+      return "Paper";
     case "diff":
       return "Diff";
     case "files":
@@ -618,6 +631,8 @@ function SurfaceIcon({
   switch (surface.kind) {
     case "preview":
       return <PreviewFavicon capturedUrl={previewCapturedUrl} url={previewUrl} />;
+    case "paper":
+      return <ScrollText className="size-3 shrink-0" />;
     case "diff":
       return <FileDiff className="size-3 shrink-0" />;
     case "files":
@@ -1037,6 +1052,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       onClick: props.onAddFiles,
     },
     {
+      label: "Paper",
+      icon: ScrollText,
+      shortcut: "R",
+      available: props.filesAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.files,
+      onClick: props.onAddPaper,
+    },
+    {
       label: "Diff",
       icon: FileDiff,
       shortcut: "D",
@@ -1436,6 +1459,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             onAddTerminal={props.onAddTerminal}
             onAddDiff={props.onAddDiff}
             onAddFiles={props.onAddFiles}
+            onAddPaper={props.onAddPaper}
             onAddPullRequest={props.onAddPullRequest}
             onAddPullRequests={props.onAddPullRequests}
             onAddDevice={props.onAddDevice}

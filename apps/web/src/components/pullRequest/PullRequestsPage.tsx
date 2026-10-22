@@ -1470,6 +1470,7 @@ export function PullRequestsPage() {
             onAddTerminal={() => undefined}
             onAddDiff={() => undefined}
             onAddFiles={() => undefined}
+            onAddPaper={() => undefined}
             onAddPullRequest={() => undefined}
             onAddPullRequests={() => undefined}
             onAddDevice={() => undefined}

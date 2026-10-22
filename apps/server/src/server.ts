@@ -77,6 +77,7 @@ import * as DesktopBrowserChannel from "./preview/DesktopBrowserChannel.ts";
 import * as ServerBrowserStream from "./preview/ServerBrowserStream.ts";
 import * as PreviewBrowser from "./preview/PreviewBrowser.ts";
 import * as ProcessRunner from "./processRunner.ts";
+import * as PaperService from "./paper/PaperService.ts";
 import * as GitManager from "./git/GitManager.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
@@ -731,6 +732,7 @@ const layerMakeRoutes = Layer.mergeAll(
   ),
   // Share the service so HTTP/WS clients single-flight reads and invalidate each other's cached patches.
   Layer.provide(layerPullRequestService),
+  Layer.provide(PaperService.layer.pipe(Layer.provide(ProcessRunner.layer))),
   Layer.provide(ServerBrowser.layer.pipe(Layer.provide(DesktopBrowserChannel.layer))),
   Layer.provide(PreviewBrowser.layer),
   Layer.provide(PreviewAutomationBroker.layer),
