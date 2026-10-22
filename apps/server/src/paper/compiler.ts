@@ -33,45 +33,28 @@ export const compile = Effect.fn("Paper.compile")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const runner = yield* ProcessRunner.ProcessRunner;
   const stem = path.basename(mainFile, ".tex");
   const outDir = path.join(cwd, PAPER_DIRECTORY, "build");
   yield* fs.makeDirectory(outDir, { recursive: true });
   yield* fs.writeFileString(path.join(cwd, PAPER_DIRECTORY, ".gitignore"), "*\n");
 
   const project = yield* fs.exists(path.join(cwd, "Tectonic.toml"));
-  const output = yield* runner
-    .run({
-      command: "tectonic",
-      args: project
-        ? ["-X", "build", "--keep-logs"]
-        : [
-            "-X",
-            "compile",
-            "--synctex",
-            "--keep-logs",
-            "--keep-intermediates",
-            ...(options.warm ? ["--reruns", "0"] : []),
-            "--outdir",
-            outDir,
-            mainFile,
-          ],
-      cwd,
-      timeout: "3 minutes",
-      timeoutBehavior: "timedOutResult",
-      maxOutputBytes: 4_000_000,
-      outputMode: "truncate",
-    })
-    .pipe(
-      Effect.asSome,
-      Effect.catchIf(
-        (error) =>
-          error._tag === "ProcessSpawnError" &&
-          error.cause instanceof PlatformError.PlatformError &&
-          error.cause.reason._tag === "NotFound",
-        () => Effect.succeedNone,
-      ),
-    );
+  const output = yield* tectonic(
+    cwd,
+    project
+      ? ["-X", "build", "--keep-logs"]
+      : [
+          "-X",
+          "compile",
+          "--synctex",
+          "--keep-logs",
+          "--keep-intermediates",
+          ...(options.warm ? ["--reruns", "0"] : []),
+          "--outdir",
+          outDir,
+          mainFile,
+        ],
+  );
   if (Option.isNone(output)) return null;
   const { code, stderr, timedOut } = output.value;
 
@@ -81,12 +64,7 @@ export const compile = Effect.fn("Paper.compile")(function* (
     : path.join(outDir, `${stem}.pdf`);
   const sibling = (extension: string) => pdf.replace(/\.pdf$/, extension);
   const log = yield* fs.readFileString(sibling(".log")).pipe(Effect.orElseSucceed(() => ""));
-  // Tectonic's console repeats font and box notes for every pass; the log holds the warnings.
-  const errors = stderr
-    .split("\n")
-    .flatMap((line) => (line.startsWith("error: ") ? [line.slice("error: ".length)] : []))
-    .join("\n");
-  const diagnostics = parseDiagnostics(`${log}\n${errors}`, cwd);
+  const diagnostics = parseDiagnostics(`${log}\n${consoleErrors(stderr)}`, cwd);
   const failed = code !== 0 || timedOut;
   const fallback: PaperDiagnostic = {
     severity: "error",
@@ -103,6 +81,73 @@ export const compile = Effect.fn("Paper.compile")(function* (
         : diagnostics,
   } satisfies CompileResult;
 });
+
+/**
+ * Typesets a standalone `file` in one pass. TeX finds the workspace's inputs on the search path,
+ * and keeps going past errors so that one broken passage does not hide the others.
+ */
+export const compileSnippet = Effect.fn("Paper.compileSnippet")(function* (
+  cwd: string,
+  file: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const output = yield* tectonic(path.dirname(file), [
+    "-X",
+    "compile",
+    "--reruns",
+    "0",
+    // Tectonic writes the log only with the intermediates.
+    "--keep-logs",
+    "--keep-intermediates",
+    "-Z",
+    "continue-on-errors",
+    "-Z",
+    `search-path=${cwd}`,
+    file,
+  ]);
+  if (Option.isNone(output)) return null;
+  const pdf = file.replace(/\.tex$/, ".pdf");
+  return {
+    pdf: output.value.code === 0 && (yield* fs.exists(pdf)) ? pdf : null,
+    log: yield* fs
+      .readFileString(file.replace(/\.tex$/, ".log"))
+      .pipe(Effect.orElseSucceed(() => "")),
+    diagnostics: parseDiagnostics(consoleErrors(output.value.stderr), cwd),
+  };
+});
+
+/** Runs Tectonic; `None` when it is not installed. */
+const tectonic = Effect.fnUntraced(function* (cwd: string, args: ReadonlyArray<string>) {
+  const runner = yield* ProcessRunner.ProcessRunner;
+  return yield* runner
+    .run({
+      command: "tectonic",
+      args,
+      cwd,
+      timeout: "3 minutes",
+      timeoutBehavior: "timedOutResult",
+      maxOutputBytes: 4_000_000,
+      outputMode: "truncate",
+    })
+    .pipe(
+      Effect.asSome,
+      Effect.catchIf(
+        (error) =>
+          error._tag === "ProcessSpawnError" &&
+          error.cause instanceof PlatformError.PlatformError &&
+          error.cause.reason._tag === "NotFound",
+        () => Effect.succeedNone,
+      ),
+    );
+});
+
+// Tectonic's console repeats font and box notes for every pass; the log holds the warnings.
+const consoleErrors = (stderr: string) =>
+  stderr
+    .split("\n")
+    .flatMap((line) => (line.startsWith("error: ") ? [line.slice("error: ".length)] : []))
+    .join("\n");
 
 const newestPdf = Effect.fnUntraced(function* (directory: string) {
   const fs = yield* FileSystem.FileSystem;

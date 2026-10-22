@@ -37,7 +37,10 @@ interface Compilation {
   readonly aux: string | null;
 }
 
-/** A Tectonic that writes a PDF, SyncTeX, `.aux` and log, or the log of a failed run. */
+/**
+ * A Tectonic that writes a PDF, SyncTeX, `.aux` and log, or the log of a failed run. A snippet
+ * gets a 100 by 20 point page for each choice, and an error on each line that reads `\\broken`.
+ */
 const fakeTectonic = (calls: Compilation[], installed: boolean, fail: () => boolean) =>
   Layer.effect(
     ProcessRunner.ProcessRunner,
@@ -58,43 +61,63 @@ const fakeTectonic = (calls: Compilation[], installed: boolean, fail: () => bool
                   }),
                 }),
               )
-            : Effect.gen(function* () {
-                const outDir = request.args[request.args.indexOf("--outdir") + 1]!;
-                const main = yield* fs.readFileString(path.join(request.cwd!, "main.tex"));
-                const aux = yield* fs
-                  .readFileString(path.join(request.cwd!, "main.aux"))
-                  .pipe(Effect.orElseSucceed(() => null));
-                calls.push({ cwd: request.cwd!, main, args: request.args, aux });
-                yield* fs.writeFileString(path.join(outDir, "main.aux"), "\\relax\n");
-                if (fail()) {
+            : request.args.includes("continue-on-errors")
+              ? Effect.gen(function* () {
+                  const file = request.args.at(-1)!;
+                  const tex = yield* fs.readFileString(file);
+                  calls.push({ cwd: request.cwd!, main: tex, args: request.args, aux: null });
+                  const pages = tex.split("\\shipout").length - 1;
                   yield* fs.writeFileString(
-                    path.join(outDir, "main.log"),
-                    "./main.tex:3: Undefined control sequence.\n",
+                    file.replace(/\.tex$/, ".log"),
+                    "t3-paper-page:100.0pt,20.0pt\n".repeat(pages),
                   );
-                  return output(12);
-                }
-                yield* fs.writeFileString(path.join(outDir, "main.pdf"), `%PDF ${calls.length}`);
-                yield* fs.writeFileString(path.join(outDir, "main.log"), "Output written.\n");
-                yield* fs.writeFile(
-                  path.join(outDir, "main.synctex.gz"),
-                  new Uint8Array(
-                    yield* Effect.promise(() =>
-                      new Response(
-                        new Blob([SYNCTEX]).stream().pipeThrough(new CompressionStream("gzip")),
-                      ).arrayBuffer(),
+                  yield* fs.writeFileString(file.replace(/\.tex$/, ".pdf"), "%PDF snippet");
+                  const errors = tex
+                    .split("\n")
+                    .flatMap((line, index) =>
+                      line === "\\broken"
+                        ? [`error: ${path.basename(file)}:${index + 1}: Undefined control sequence`]
+                        : [],
+                    );
+                  return output(0, errors.join("\n"));
+                }).pipe(Effect.orDie)
+              : Effect.gen(function* () {
+                  const outDir = request.args[request.args.indexOf("--outdir") + 1]!;
+                  const main = yield* fs.readFileString(path.join(request.cwd!, "main.tex"));
+                  const aux = yield* fs
+                    .readFileString(path.join(request.cwd!, "main.aux"))
+                    .pipe(Effect.orElseSucceed(() => null));
+                  calls.push({ cwd: request.cwd!, main, args: request.args, aux });
+                  yield* fs.writeFileString(path.join(outDir, "main.aux"), "\\relax\n");
+                  if (fail()) {
+                    yield* fs.writeFileString(
+                      path.join(outDir, "main.log"),
+                      "./main.tex:3: Undefined control sequence.\n",
+                    );
+                    return output(12);
+                  }
+                  yield* fs.writeFileString(path.join(outDir, "main.pdf"), `%PDF ${calls.length}`);
+                  yield* fs.writeFileString(path.join(outDir, "main.log"), "Output written.\n");
+                  yield* fs.writeFile(
+                    path.join(outDir, "main.synctex.gz"),
+                    new Uint8Array(
+                      yield* Effect.promise(() =>
+                        new Response(
+                          new Blob([SYNCTEX]).stream().pipeThrough(new CompressionStream("gzip")),
+                        ).arrayBuffer(),
+                      ),
                     ),
-                  ),
-                );
-                return output(0);
-              }).pipe(Effect.orDie),
+                  );
+                  return output(0);
+                }).pipe(Effect.orDie),
       };
     }),
   );
 
-const output = (code: number): ProcessRunner.ProcessRunOutput => ({
+const output = (code: number, stderr = ""): ProcessRunner.ProcessRunOutput => ({
   code: ChildProcessSpawner.ExitCode(code),
   stdout: "",
-  stderr: "",
+  stderr,
   timedOut: false,
   stdoutTruncated: false,
   stderrTruncated: false,
@@ -276,6 +299,39 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       expect(yield* fs.exists(path.join(cwd, kept))).toBe(true);
       expect((yield* rebuild).build.revision).toBe(3);
       expect(yield* fs.exists(path.join(cwd, kept))).toBe(false);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("typesets each choice of a proposal on its own page, once", () =>
+    Effect.gen(function* () {
+      const { cwd, paper, calls, fs, path } = yield* setup();
+      yield* paper.current(cwd, THREAD);
+      const builds = calls.length;
+      const proposal = yield* paper.propose({
+        cwd,
+        threadId: THREAD,
+        file: "main.tex",
+        original: SENTENCE,
+        options: [...OPTIONS, { latex: "\\broken" }],
+      });
+      // Proposing typesets the choices, so the card has them when the tool call returns.
+      expect(calls).toHaveLength(builds + 1);
+      const snippet = calls.at(-1)!;
+      expect(snippet.main).toContain("\\documentclass{article}");
+      expect(snippet.main).toContain("A shorter one.");
+      // As wide as the passage's line in the paper.
+      expect(snippet.main).toContain("\\hsize=300.000bp");
+
+      const typeset = yield* paper.typesetProposal({ cwd, proposalId: proposal.id });
+      expect(calls).toHaveLength(builds + 1);
+      const page = { width: 100 * (72 / 72.27), height: 20 * (72 / 72.27), error: null };
+      expect(typeset).toEqual({
+        status: "ready",
+        pdf: `.t3-paper/proposals/${proposal.id}.pdf`,
+        pages: [page, page, page, { ...page, error: "Undefined control sequence" }],
+      });
+      const files = yield* fs.readDirectory(path.join(cwd, ".t3-paper", "proposals"));
+      expect(files.toSorted()).toEqual([`${proposal.id}.json`, `${proposal.id}.pdf`]);
     }).pipe(Effect.scoped),
   );
 

@@ -27,6 +27,13 @@ export function createPaperEnvironmentAtoms<R, E>(
       staleTimeMs: Infinity,
       idleTtlMs: 10 * 60_000,
     }),
+    // Typeset once per proposal; the server keeps the result with the proposal.
+    typesetProposal: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "paper:typeset-proposal",
+      tag: WS_METHODS.paperTypesetProposal,
+      staleTimeMs: Infinity,
+      idleTtlMs: 10 * 60_000,
+    }),
     locateSource: createEnvironmentRpcCommand(runtime, {
       label: "paper:locate-source",
       tag: WS_METHODS.paperLocateSource,

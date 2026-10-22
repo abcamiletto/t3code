@@ -7,9 +7,11 @@ import {
   type PaperPreview,
   type PaperPreviewInput,
   type PaperProposalOption,
+  PaperProposalTypeset,
   type PaperResolveProposalInput,
   type PaperSourceRange,
   type PaperState,
+  type PaperTypesetProposalInput,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -30,10 +32,11 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import * as ProcessRunner from "../processRunner.ts";
-import { compile, PAPER_DIRECTORY, type CompileResult } from "./compiler.ts";
+import { compile, compileSnippet, PAPER_DIRECTORY, type CompileResult } from "./compiler.ts";
 import { locate, proposalText, reconcile } from "./proposals.ts";
 import { scratchCopy } from "./scratch.ts";
-import { backwardSearch, forwardSearch, parseSyncTex, type SyncTex } from "./synctex.ts";
+import { snippetPages, snippetSource } from "./snippet.ts";
+import { backwardSearch, forwardSearch, lineWidth, parseSyncTex, type SyncTex } from "./synctex.ts";
 
 export interface ProposeInput {
   readonly cwd: string;
@@ -52,6 +55,9 @@ export class PaperService extends Context.Service<
     readonly current: (cwd: string, threadId: string) => Effect.Effect<PaperState, PaperError>;
     readonly build: (cwd: string) => Effect.Effect<void, PaperError>;
     readonly preview: (input: PaperPreviewInput) => Effect.Effect<PaperPreview, PaperError>;
+    readonly typesetProposal: (
+      input: PaperTypesetProposalInput,
+    ) => Effect.Effect<PaperProposalTypeset, PaperError>;
     readonly locateSource: (
       input: PaperLocateSourceInput,
     ) => Effect.Effect<PaperSourceRange, PaperError>;
@@ -74,6 +80,7 @@ interface WorkspaceState {
 const StoredProposals = Schema.fromJsonString(Schema.Array(PaperProposal));
 const encodeProposals = Schema.encodeEffect(StoredProposals);
 const decodeProposals = Schema.decodeEffect(StoredProposals);
+const StoredTypeset = Schema.fromJsonString(PaperProposalTypeset);
 const MAX_STORED_PROPOSALS = 200;
 const SOURCE_FILE =
   /(?:\.(?:tex|bib|sty|cls|bst|bbx|cbx|png|jpe?g|pdf|eps|svg|tikz|csv|dat)|Tectonic\.toml)$/i;
@@ -103,6 +110,8 @@ const make = Effect.gen(function* () {
   // Typesetting an alternative compiles the whole document; one at a time keeps the
   // machine responsive while the author's own build runs.
   const previewPermit = yield* Semaphore.make(1);
+  // Waiting for a running typesetting of the same proposal finds its result instead of repeating it.
+  const choicesPermit = yield* Semaphore.make(1);
   const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     effect.pipe(
       Effect.provideService(FileSystem.FileSystem, fs),
@@ -476,6 +485,59 @@ const make = Effect.gen(function* () {
     }).pipe(Effect.scoped, previewPermit.withPermits(1));
   });
 
+  /**
+   * Each choice of a proposal typeset on its own. A success never depends on later builds, so it
+   * is kept beside the proposals; a failure is tried again, as the preamble may since be fixed.
+   */
+  const typesetChoices = Effect.fn("PaperService.typesetChoices")(function* (
+    workspace: Workspace,
+    proposal: PaperProposal,
+  ) {
+    const directory = path.join(workspace.cwd, PAPER_DIRECTORY, "proposals");
+    const stored = path.join(directory, `${proposal.id}.json`);
+    const cached = yield* fs
+      .readFileString(stored)
+      .pipe(Effect.flatMap(Schema.decodeEffect(StoredTypeset)), Effect.option);
+    if (Option.isSome(cached)) return cached.value;
+
+    const { mainFile } = yield* SubscriptionRef.get(workspace.state);
+    if (mainFile === null) return yield* new PaperError({ reason: "no_document" });
+    const main = yield* readSource(path.join(workspace.cwd, mainFile));
+    const stem = path.basename(mainFile, ".tex");
+    const index = yield* Ref.get(workspace.synctex);
+    const file = yield* workspaceFile(workspace.cwd, proposal.file);
+    const snippet = snippetSource({
+      preamble: main.slice(0, Math.max(0, main.indexOf("\\begin{document}"))),
+      aux: yield* readSource(path.join(workspace.cwd, PAPER_DIRECTORY, "build", `${stem}.aux`)),
+      width: index
+        ? lineWidth(index, file.absolute, proposal.startLine, proposal.endLine)
+        : undefined,
+      choices: [proposal.original, ...proposal.options.map((option) => option.latex)],
+    });
+    const tex = path.join(directory, `${proposal.id}.tex`);
+    yield* io(fs.makeDirectory(directory, { recursive: true }));
+    yield* io(fs.writeFileString(tex, snippet.tex));
+    const result = yield* provide(compileSnippet(workspace.cwd, tex)).pipe(io);
+    if (result === null) {
+      const missing: PaperDiagnostic = { severity: "error", message: "Tectonic is not installed." };
+      return { status: "failed", diagnostics: [missing] } satisfies PaperProposalTypeset;
+    }
+    const pages = snippetPages(result.log, result.diagnostics, path.basename(tex), snippet.ranges);
+    const typeset: PaperProposalTypeset =
+      result.pdf !== null && pages.length === snippet.ranges.length
+        ? { status: "ready", pdf: `${PAPER_DIRECTORY}/proposals/${proposal.id}.pdf`, pages }
+        : { status: "failed", diagnostics: result.diagnostics };
+    if (typeset.status === "ready")
+      yield* io(
+        Schema.encodeEffect(StoredTypeset)(typeset).pipe(
+          Effect.flatMap((json) => fs.writeFileString(stored, json)),
+        ),
+      );
+    for (const extension of [".tex", ".aux", ".log"])
+      yield* fs.remove(tex.replace(/\.tex$/, extension)).pipe(Effect.ignore);
+    return typeset;
+  }, choicesPermit.withPermits(1));
+
   return PaperService.of({
     subscribe: (cwd, threadId) =>
       Stream.unwrap(
@@ -525,6 +587,13 @@ const make = Effect.gen(function* () {
           const file = `${proposal.id}-${input.option ?? "original"}-${build.revision}.pdf`;
           return yield* typeset(workspace, proposal, target, file);
         }),
+      );
+    }),
+    typesetProposal: Effect.fn("PaperService.typesetProposal")(function* (input) {
+      return yield* withWorkspace(input.cwd, (workspace) =>
+        findProposal(workspace, input.proposalId).pipe(
+          Effect.flatMap((proposal) => typesetChoices(workspace, proposal)),
+        ),
       );
     }),
     locateSource: Effect.fn("PaperService.locateSource")(function* (input) {
@@ -593,7 +662,11 @@ const make = Effect.gen(function* () {
             proposal,
           ]);
           return proposal;
-        }).pipe(workspace.lock.withPermits(1)),
+        }).pipe(
+          workspace.lock.withPermits(1),
+          // The chat card then shows the choices typeset from its first frame.
+          Effect.tap((proposal) => typesetChoices(workspace, proposal).pipe(Effect.ignore)),
+        ),
       );
     }),
     resolve: Effect.fn("PaperService.resolve")(function* (input) {

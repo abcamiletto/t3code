@@ -7,7 +7,6 @@ import type {
   PaperState,
   ScopedThreadRef,
 } from "@t3tools/contracts";
-import { resolveWorkspaceFilePath } from "@t3tools/shared/path";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,9 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { useAssetUrlState } from "~/assets/assetUrls";
 import { FileSurfaceLoading } from "~/components/files/fileSurfaceChrome";
-import { workspaceAssetResource } from "~/components/files/filePreviewMode";
 import { Button } from "~/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "~/components/ui/empty";
 import { Spinner } from "~/components/ui/spinner";
@@ -32,7 +29,7 @@ import { useComposerDraftStore, type DraftId } from "~/composerDraftStore";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { formatEnvironmentQueryError, useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { usePaperDocument, type PaperDocument } from "./pdfDocument";
+import { usePaperDocument, usePaperFileUrl, type PaperDocument } from "./pdfDocument";
 import { PdfView, type PdfMark, type PdfTextSelection } from "./PdfView";
 import { pdfComment } from "./comments";
 import { matchPassage, readTextRuns } from "./passage";
@@ -395,32 +392,6 @@ function PreviewPrefetch(props: {
     }),
   );
   return null;
-}
-
-/** A URL for a workspace-relative Paper file; the revision busts caches between builds. */
-function usePaperFileUrl(
-  threadRef: ScopedThreadRef,
-  cwd: string,
-  composerDraftTarget: ScopedThreadRef | DraftId,
-  file: string | null,
-  revision: number,
-) {
-  const asset = useAssetUrlState(
-    threadRef.environmentId,
-    file === null
-      ? null
-      : workspaceAssetResource({
-          kind: "workspace-file",
-          threadRef,
-          draft: typeof composerDraftTarget === "string",
-          workspaceRoot: cwd,
-          absolutePath: resolveWorkspaceFilePath(file, cwd),
-        }),
-  );
-  if (asset._tag !== "Success") return null;
-  const url = new URL(asset.url);
-  url.searchParams.set("revision", String(revision));
-  return url.href;
 }
 
 function PaperToolbar(props: {

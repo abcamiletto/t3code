@@ -29,7 +29,9 @@ draft. Escape closes the box; a click elsewhere closes it only while it is empty
 ## Choose a rewrite
 
 The agent edits precise requests directly. For open-ended feedback, such as "this is awkward", it
-proposes two to four rewrites, which appear in the chat as a card showing each option's changes.
+proposes two to four rewrites, which appear in the chat as a card. The card shows each option
+typeset with your preamble, so your macros and packages render; **<>** shows the LaTeX changes
+instead.
 
 Click **Show in paper** to review a proposal in the PDF. Switch between **Original** and the
 options with the buttons or the arrow keys; each option is typeset in the whole document, so you
