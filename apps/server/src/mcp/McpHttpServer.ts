@@ -71,6 +71,8 @@ import {
   DeviceStandardToolkit,
 } from "./toolkits/device/tools.ts";
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
+import * as PaperHandlers from "./toolkits/paper/handlers.ts";
+import { PaperToolkit } from "./toolkits/paper/tools.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
 
 const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
@@ -1077,4 +1079,5 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
+  toolkitRegistration(PaperToolkit, PaperHandlers.layer),
 ).pipe(Layer.provideMerge(layerMcpTransport));

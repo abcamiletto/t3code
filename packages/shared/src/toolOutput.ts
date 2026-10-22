@@ -1,6 +1,7 @@
 import {
   isProviderSendTurnSupportedImageMimeType,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+  type PaperProposalReference,
 } from "@t3tools/contracts";
 import * as Predicate from "effect/Predicate";
 
@@ -40,6 +41,7 @@ interface CompactToolOutput {
   scheduledTaskId?: string;
   status?: "rolled_back";
   htmlRender?: HtmlRenderReference;
+  paperProposal?: PaperProposalReference;
   [MCP_APP_OUTPUT_KEY]?: McpAppReference;
   thread?: { threadId: string };
   threads?: Array<{ threadId?: string; status?: "rolled_back" }>;
@@ -125,6 +127,10 @@ export function compactDynamicToolOutput(value: unknown): CompactToolOutput | un
     if (data.status === "rolled_back") output.status = "rolled_back";
     const htmlRender = readHtmlRenderReference(data.htmlRender);
     if (htmlRender !== undefined) output.htmlRender = htmlRender;
+    const paper = Predicate.isObject(data.paperProposal) ? data.paperProposal : undefined;
+    const proposalId = boundedId(paper?.proposalId);
+    if (paper && proposalId && typeof paper.cwd === "string" && paper.cwd.length <= 4096)
+      output.paperProposal = { cwd: paper.cwd, proposalId };
     const mcpApp = readMcpAppReference(data[MCP_APP_OUTPUT_KEY]);
     if (mcpApp !== undefined) output[MCP_APP_OUTPUT_KEY] = mcpApp;
     const nestedThreadId = Predicate.isObject(data.thread)
@@ -175,6 +181,16 @@ export function compactDynamicToolOutput(value: unknown): CompactToolOutput | un
   }
   if (oversized()) delete output[MCP_APP_OUTPUT_KEY];
   return Object.keys(output).length === 0 ? undefined : output;
+}
+
+/** The proposal a completed `paper_propose_edits` call made, shown where the call is. */
+export function paperProposalFromToolItem(item: {
+  readonly toolName: string | null | undefined;
+  readonly output?: unknown;
+}): PaperProposalReference | undefined {
+  if (resolveT3McpToolId(item.toolName) !== "paper_propose_edits") return undefined;
+  const output = compactDynamicToolOutput(item.output);
+  return output?.isError ? undefined : output?.paperProposal;
 }
 
 export function htmlRenderFromToolItem(item: {

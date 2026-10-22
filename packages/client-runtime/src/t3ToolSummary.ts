@@ -437,6 +437,12 @@ export function summarizeT3ToolCalls(
     case "html-render":
       label = phrase("Rendered", "render", quantity(selected.length, "HTML page"));
       break;
+    case "paper-status":
+      label = phrase("Checked", "check", "the paper build");
+      break;
+    case "paper-propose":
+      label = phrase("Proposed", "propose", quantity(selected.length, "paper proposal"));
+      break;
     case "capabilities":
       label = phrase("Checked", "check", `orchestration capabilities ${times}`);
       break;

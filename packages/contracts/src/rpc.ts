@@ -356,6 +356,7 @@ import {
   ScheduledTaskMutationResult,
 } from "./scheduledTask.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
+import { PAPER_WS_METHODS, PaperRpcGroup } from "./paper.ts";
 import {
   ProjectCloneActionInput,
   ProjectCloneActionResult,
@@ -518,6 +519,7 @@ export const WS_METHODS = {
   scheduledTasksRunNow: "scheduledTasks.runNow",
   scheduledTasksRotateWebhookToken: "scheduledTasks.rotateWebhookToken",
   secretsAnswerRequest: "secrets.answerRequest",
+  ...PAPER_WS_METHODS,
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
   scheduledTasksGetWebhookDelivery: "scheduledTasks.getWebhookDelivery",
 
@@ -2078,4 +2080,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeShellRpc,
   WsOrchestrationV2SubscribeThreadRpc,
   WsOrchestrationV2SubscribeCommandOutputRpc,
-).middleware(RpcScopeAuthorization);
+)
+  // A separate group: one more method in the call above exceeds what TypeScript can infer.
+  .merge(PaperRpcGroup)
+  .middleware(RpcScopeAuthorization);
