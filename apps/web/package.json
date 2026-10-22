@@ -59,6 +59,7 @@
     "@tiptap/starter-kit": "^3.31.3",
     "class-variance-authority": "^0.7.1",
     "culori": "^4.0.2",
+    "diff": "8.0.3",
     "dompurify": "^3.4.16",
     "effect": "catalog:",
     "entities": "8.1.0",

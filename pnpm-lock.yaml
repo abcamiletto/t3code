@@ -1130,6 +1130,9 @@ importers:
       culori:
         specifier: ^4.0.2
         version: 4.0.2
+      diff:
+        specifier: 8.0.3
+        version: 8.0.3
       dompurify:
         specifier: ^3.4.16
         version: 3.4.16

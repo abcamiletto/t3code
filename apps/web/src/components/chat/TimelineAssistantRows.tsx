@@ -1,7 +1,7 @@
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
 import { type RunId } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
-import { memo, use, useState } from "react";
+import { lazy, memo, Suspense, use, useState } from "react";
 import { type ChatMessage, type TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
 import { GitForkIcon } from "lucide-react";
@@ -22,6 +22,9 @@ import { formatChatTimestampTooltip, formatDayAwareTimestamp } from "../../times
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { TimelineRowCtx, TimelineRowActivityCtx, type TimelineRow } from "./timelineRowContext";
 import { MESSAGE_HEADING_LEVEL, MessageAuthorHeading } from "./TimelineRowParts";
+
+// Loads with the first proposal, so threads without one never fetch the Paper code.
+const PaperProposalCard = lazy(() => import("../../paper/ProposalCard"));
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -259,6 +262,22 @@ export function HtmlRenderTimelineRow({
         threadRef={ctx.threadRef ?? undefined}
         onFullscreenChange={onFullscreenChange}
       />
+    </div>
+  );
+}
+
+export function PaperProposalTimelineRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "paper-proposal" }>;
+}) {
+  const ctx = use(TimelineRowCtx);
+  if (!ctx.threadRef) return null;
+  return (
+    <div className="min-w-0 px-1">
+      <Suspense fallback={null}>
+        <PaperProposalCard threadRef={ctx.threadRef} reference={row.paperProposal} />
+      </Suspense>
     </div>
   );
 }
