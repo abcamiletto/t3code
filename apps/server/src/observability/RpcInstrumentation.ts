@@ -98,6 +98,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.paperSubscribe]: "paper",
   [WS_METHODS.paperBuild]: "paper",
   [WS_METHODS.paperPreview]: "paper",
+  [WS_METHODS.paperTypesetProposal]: "paper",
   [WS_METHODS.paperLocateSource]: "paper",
   [WS_METHODS.paperResolveProposal]: "paper",
   [WS_METHODS.cloudGetRelayClientStatus]: "cloud",

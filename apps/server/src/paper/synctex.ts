@@ -122,6 +122,27 @@ export function forwardSearch(
   return boxes.toSorted((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
 }
 
+/** The width of the lines that typeset source lines `startLine`–`endLine` of `file`. */
+export function lineWidth(
+  synctex: SyncTex,
+  file: string,
+  startLine: number,
+  endLine: number,
+): number | undefined {
+  const tags = inputsFor(synctex, file);
+  let width: number | undefined;
+  for (const mark of synctex.marks) {
+    if (
+      tags.has(mark.input) &&
+      mark.box.width > 0 &&
+      mark.line >= startLine &&
+      mark.line <= endLine
+    )
+      width = Math.max(width ?? 0, mark.box.width);
+  }
+  return width;
+}
+
 /** The source location of the typeset text nearest to a point on a page. */
 export function backwardSearch(
   synctex: SyncTex,
