@@ -1,0 +1,53 @@
+/* pdf.js places text spans imperatively; their geometry must match its canvas. */
+[data-paper-text-layer] {
+  text-align: initial;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+[data-paper-text-layer] :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  user-select: text;
+  transform-origin: 0 0;
+}
+
+[data-paper-text-layer] > :not(.markedContent),
+[data-paper-text-layer] .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+[data-paper-text-layer] .markedContent {
+  display: contents;
+}
+[data-paper-text-layer] ::selection {
+  background: color-mix(in srgb, Highlight 30%, transparent);
+}
+[data-paper-text-layer] br::selection {
+  background: transparent;
+}
+
+[data-paper-text-layer][data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+[data-paper-text-layer][data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+[data-paper-text-layer][data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
+}

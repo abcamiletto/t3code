@@ -60,6 +60,7 @@ import {
   RunId,
   type ThreadId,
   type TurnItemId,
+  type PaperProposalReference,
 } from "@t3tools/contracts";
 import type { ThreadRunSummary } from "@t3tools/client-runtime/state/shell";
 import { resolveT3McpToolDefinition } from "@t3tools/shared/t3McpToolPresentation";
@@ -82,7 +83,8 @@ function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "proposed-plan") {
     return entry.proposedPlan.runId;
   }
-  if (entry.kind === "html-render" || entry.kind === "mcp-app") return entry.runId;
+  if (entry.kind === "html-render" || entry.kind === "mcp-app" || entry.kind === "paper-proposal")
+    return entry.runId;
   return entry.kind === "work" ? (entry.entry.runId ?? null) : null;
 }
 
@@ -634,6 +636,12 @@ type MessagesTimelineRowContent =
       htmlRender: HtmlRenderReference;
     }
   | {
+      kind: "paper-proposal";
+      id: string;
+      createdAt: string;
+      paperProposal: PaperProposalReference;
+    }
+  | {
       kind: "mcp-app";
       id: string;
       createdAt: string;
@@ -796,6 +804,7 @@ function deriveSupersededAttemptFolds(
       (entry.kind === "message" && entry.message.role === "user") ||
       (entry.kind === "event" && entry.projectedItem.item.type === "handoff") ||
       entry.kind === "html-render" ||
+      entry.kind === "paper-proposal" ||
       entry.kind === "mcp-app" ||
       timelineEntryIsPersistentResourceCard(entry) ||
       liveSubagentEntryIds.has(entry.id) ||
@@ -1951,6 +1960,16 @@ export function deriveMessagesTimelineRows(input: {
       continue;
     }
 
+    if (timelineEntry.kind === "paper-proposal") {
+      nextRows.push({
+        kind: "paper-proposal",
+        id: timelineEntry.id,
+        createdAt: timelineEntry.createdAt,
+        paperProposal: timelineEntry.paperProposal,
+      });
+      continue;
+    }
+
     if (timelineEntry.kind === "html-render") {
       nextRows.push({
         kind: "html-render",
@@ -2444,6 +2463,15 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
     case "proposed-plan":
       return a.proposedPlan === (b as typeof a).proposedPlan;
+
+    case "paper-proposal": {
+      const bp = b as typeof a;
+      return (
+        a.createdAt === bp.createdAt &&
+        a.paperProposal.cwd === bp.paperProposal.cwd &&
+        a.paperProposal.proposalId === bp.paperProposal.proposalId
+      );
+    }
 
     case "html-render": {
       // Tool updates rebuild entries; preserve frames for unchanged pages.
