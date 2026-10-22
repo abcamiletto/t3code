@@ -5,12 +5,12 @@ import { Button } from "~/components/ui/button";
 import { useEnvironmentQuery } from "~/state/query";
 import {
   choiceLabel,
-  ProposalActions,
   ProposalChoices,
   ProposalDiff,
   proposalStatusLabel,
   useProposalChoice,
 } from "./ProposalParts";
+import { ProposalFooter } from "./ProposalFooter";
 import { openPaper, setExpanded, usePaperReview } from "./review";
 import { paperEnvironment } from "./state";
 import { useProposalActions } from "./useProposalActions";
@@ -101,14 +101,12 @@ function LoadedProposalCard(props: {
               {choiceLabel(choice)}: {proposal.options[choice]!.note}
             </p>
           ) : null}
-          <footer className="flex items-center justify-end gap-1">
-            {actions.error ? (
-              <p role="alert" className="mr-auto text-xs text-destructive">
-                {actions.error}
-              </p>
-            ) : null}
-            <ProposalActions proposal={proposal} choice={choice} actions={actions} />
-          </footer>
+          <ProposalFooter
+            proposal={proposal}
+            choice={choice}
+            actions={actions}
+            composerDraftTarget={threadRef}
+          />
         </>
       ) : null}
     </section>

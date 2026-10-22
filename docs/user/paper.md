@@ -41,6 +41,8 @@ toolbar and the blue marks in the PDF margin open them.
 - **Apply** writes the option to the source file. Applying another option replaces it; **Undo**
   restores the original text.
 - **Dismiss** hides a proposal; **Restore** brings it back.
+- **Reply** adds feedback on the proposal to your message, with all its options. Send it, and the
+  agent answers with revised options that replace the pending ones.
 
 A proposal follows the file: if you undo an applied option in your editor, it is pending again.
 If its text changes, it can no longer be applied.
