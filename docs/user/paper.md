@@ -44,8 +44,10 @@ toolbar and the blue marks in the PDF margin open them.
 - **Reply** adds feedback on the proposal to your message, with all its options. Send it, and the
   agent answers with revised options that replace the pending ones.
 
-A proposal follows the file: if you undo an applied option in your editor, it is pending again.
-If its text changes, it can no longer be applied.
+A proposal follows the file: if you undo an applied option in your editor, it is pending again,
+and if an option is written into the file another way, for example by the agent, it shows as
+applied. If the passage changes otherwise, the proposal can no longer be applied; **Reply** asks
+the agent for a revised one.
 
 ## Agent tools
 

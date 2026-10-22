@@ -219,11 +219,12 @@ const make = Effect.gen(function* () {
         const absolute = path.join(cwd, proposal.file);
         const source = sources.get(absolute) ?? (yield* readSource(absolute));
         sources.set(absolute, source);
-        const { status, range } = reconcile(proposal, source);
+        const { status, appliedOption, range } = reconcile(proposal, source);
         const { appliedOption: _, ...unapplied } = proposal;
         next.push({
-          ...(status === "pending" ? unapplied : proposal),
+          ...unapplied,
           status,
+          ...(appliedOption === undefined ? {} : { appliedOption }),
           ...(range ? { startLine: range.startLine, endLine: range.endLine } : {}),
           boxes:
             range && index ? forwardSearch(index, absolute, range.startLine, range.endLine) : [],
