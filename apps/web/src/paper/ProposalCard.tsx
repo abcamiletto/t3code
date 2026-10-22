@@ -1,7 +1,9 @@
 import type { PaperProposal, PaperProposalReference, ScopedThreadRef } from "@t3tools/contracts";
-import { ChevronDown, FileText } from "lucide-react";
+import { ChevronDown, Code, FileText } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { Toggle } from "~/components/ui/toggle";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useEnvironmentQuery } from "~/state/query";
 import {
   choiceLabel,
@@ -11,8 +13,9 @@ import {
   useProposalChoice,
 } from "./ProposalParts";
 import { ProposalFooter } from "./ProposalFooter";
-import { openPaper, setExpanded, usePaperReview } from "./review";
+import { openPaper, setExpanded, showSource, usePaperReview } from "./review";
 import { paperEnvironment } from "./state";
+import { TypesetChoice } from "./TypesetChoice";
 import { useProposalActions } from "./useProposalActions";
 
 /** The alternatives an agent proposed, where it proposed them in the chat. */
@@ -50,6 +53,8 @@ function LoadedProposalCard(props: {
   const actions = useProposalActions(threadRef, reference.cwd, proposal);
   const resolved = proposal.status !== "pending";
   const expanded = usePaperReview((state) => state.expanded[proposal.id] ?? !resolved);
+  const source = usePaperReview((state) => state.source);
+  const stale = proposal.status === "stale";
   const status = proposalStatusLabel(proposal);
   const location =
     proposal.startLine === proposal.endLine
@@ -82,7 +87,7 @@ function LoadedProposalCard(props: {
         <Button
           size="xs"
           variant="ghost"
-          disabled={proposal.status === "stale"}
+          disabled={stale}
           onClick={() => openPaper(threadRef, proposal.id)}
         >
           <FileText />
@@ -93,9 +98,38 @@ function LoadedProposalCard(props: {
         <>
           <div className="flex flex-wrap items-center gap-2">
             <ProposalChoices proposal={proposal} choice={choice} />
-            <span className="truncate text-xs text-muted-foreground">{location}</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {location}
+            </span>
+            {stale ? null : (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Toggle
+                      size="xs"
+                      variant="ghost"
+                      aria-label="LaTeX source"
+                      pressed={source}
+                      onPressedChange={showSource}
+                    />
+                  }
+                >
+                  <Code />
+                </TooltipTrigger>
+                <TooltipPopup>LaTeX source</TooltipPopup>
+              </Tooltip>
+            )}
           </div>
-          <ProposalDiff proposal={proposal} choice={choice} />
+          {source || stale ? (
+            <ProposalDiff proposal={proposal} choice={choice} />
+          ) : (
+            <TypesetChoice
+              threadRef={threadRef}
+              cwd={reference.cwd}
+              proposal={proposal}
+              choice={choice}
+            />
+          )}
           {choice !== null && proposal.options[choice]?.note ? (
             <p className="text-xs text-muted-foreground">
               {choiceLabel(choice)}: {proposal.options[choice]!.note}

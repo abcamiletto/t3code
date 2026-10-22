@@ -114,6 +114,38 @@ export const PaperPreview = Schema.Union([
 ]);
 export type PaperPreview = typeof PaperPreview.Type;
 
+export const PaperTypesetProposalInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  proposalId: TrimmedNonEmptyString,
+});
+export type PaperTypesetProposalInput = typeof PaperTypesetProposalInput.Type;
+
+export const PaperChoicePage = Schema.Struct({
+  /** In PDF points. */
+  width: Schema.Number,
+  height: Schema.Number,
+  /** The first error in this choice's text; the page holds only what TeX recovered. */
+  error: Schema.NullOr(Schema.String),
+});
+export type PaperChoicePage = typeof PaperChoicePage.Type;
+
+/**
+ * A proposal's choices typeset on their own with the paper's preamble, one page each: the
+ * original first, then every option. Its chat card shows them.
+ */
+export const PaperProposalTypeset = Schema.Union([
+  Schema.Struct({
+    status: Schema.Literal("ready"),
+    pdf: Schema.String,
+    pages: Schema.Array(PaperChoicePage),
+  }),
+  Schema.Struct({
+    status: Schema.Literal("failed"),
+    diagnostics: Schema.Array(PaperDiagnostic),
+  }),
+]);
+export type PaperProposalTypeset = typeof PaperProposalTypeset.Type;
+
 export const PaperLocateSourceInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   /** The selected text's rectangles in the current PDF. */
@@ -184,6 +216,7 @@ export const PAPER_WS_METHODS = {
   paperSubscribe: "paper.subscribe",
   paperBuild: "paper.build",
   paperPreview: "paper.preview",
+  paperTypesetProposal: "paper.typesetProposal",
   paperLocateSource: "paper.locateSource",
   paperResolveProposal: "paper.resolveProposal",
 } as const;
@@ -201,6 +234,11 @@ export const PaperRpcGroup = RpcGroup.make(
   Rpc.make(PAPER_WS_METHODS.paperPreview, {
     payload: PaperPreviewInput,
     success: PaperPreview,
+    error: PaperRpcError,
+  }),
+  Rpc.make(PAPER_WS_METHODS.paperTypesetProposal, {
+    payload: PaperTypesetProposalInput,
+    success: PaperProposalTypeset,
     error: PaperRpcError,
   }),
   Rpc.make(PAPER_WS_METHODS.paperLocateSource, {
