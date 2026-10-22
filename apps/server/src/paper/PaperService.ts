@@ -81,6 +81,8 @@ const StoredProposals = Schema.fromJsonString(Schema.Array(PaperProposal));
 const encodeProposals = Schema.encodeEffect(StoredProposals);
 const decodeProposals = Schema.decodeEffect(StoredProposals);
 const StoredTypeset = Schema.fromJsonString(PaperProposalTypeset);
+const encodeTypeset = Schema.encodeEffect(StoredTypeset);
+const decodeTypeset = Schema.decodeEffect(StoredTypeset);
 const MAX_STORED_PROPOSALS = 200;
 const SOURCE_FILE =
   /(?:\.(?:tex|bib|sty|cls|bst|bbx|cbx|png|jpe?g|pdf|eps|svg|tikz|csv|dat)|Tectonic\.toml)$/i;
@@ -497,7 +499,7 @@ const make = Effect.gen(function* () {
     const stored = path.join(directory, `${proposal.id}.json`);
     const cached = yield* fs
       .readFileString(stored)
-      .pipe(Effect.flatMap(Schema.decodeEffect(StoredTypeset)), Effect.option);
+      .pipe(Effect.flatMap(decodeTypeset), Effect.option);
     if (Option.isSome(cached)) return cached.value;
 
     const { mainFile } = yield* SubscriptionRef.get(workspace.state);
@@ -529,9 +531,7 @@ const make = Effect.gen(function* () {
         : { status: "failed", diagnostics: result.diagnostics };
     if (typeset.status === "ready")
       yield* io(
-        Schema.encodeEffect(StoredTypeset)(typeset).pipe(
-          Effect.flatMap((json) => fs.writeFileString(stored, json)),
-        ),
+        encodeTypeset(typeset).pipe(Effect.flatMap((json) => fs.writeFileString(stored, json))),
       );
     for (const extension of [".tex", ".aux", ".log"])
       yield* fs.remove(tex.replace(/\.tex$/, extension)).pipe(Effect.ignore);
@@ -664,8 +664,13 @@ const make = Effect.gen(function* () {
           return proposal;
         }).pipe(
           workspace.lock.withPermits(1),
-          // The chat card then shows the choices typeset from its first frame.
-          Effect.tap((proposal) => typesetChoices(workspace, proposal).pipe(Effect.ignore)),
+          // Ready by the time the author asks for the typeset choices, without delaying the agent.
+          Effect.tap((proposal) =>
+            typesetChoices(workspace, proposal).pipe(
+              Effect.ignoreCause({ log: true }),
+              Effect.forkDetach,
+            ),
+          ),
         ),
       );
     }),

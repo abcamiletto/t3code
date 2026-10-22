@@ -1,6 +1,7 @@
 import type { PaperChoicePage, PaperDiagnostic } from "@t3tools/contracts";
 
 const PAGE_MARK = "t3-paper-page:";
+const FLOATS = ["figure", "figure*", "table", "table*"];
 const MARGIN = 2;
 // TeX reports dimensions in TeX points; PDF points are 1/72 in.
 const PDF_POINTS_PER_TEX_POINT = 72 / 72.27;
@@ -25,19 +26,24 @@ export function snippetSource(input: {
     ...input.preamble.trimEnd().split("\n"),
     "\\makeatletter",
     ...references,
-    "\\makeatother",
     "\\begin{document}",
+    // A float cannot go in a box, so figures and tables appear where the text puts them.
+    ...FLOATS.map(
+      (name) =>
+        `\\renewenvironment{${name}}[1][]{\\def\\@captype{${name.replace("*", "")}}\\par\\noindent\\begin{minipage}{\\hsize}}{\\end{minipage}\\par}`,
+    ),
+    "\\makeatother",
     `\\hoffset=\\dimexpr-1in+${MARGIN}pt\\relax \\voffset=\\dimexpr-1in+${MARGIN}pt\\relax`,
   ];
   const width = input.width === undefined ? "\\columnwidth" : `${input.width.toFixed(3)}bp`;
   const ranges = input.choices.map((choice) => {
     lines.push(
-      // Every choice numbers its equations alike; the paper's numbers depend on what precedes.
-      "\\setcounter{equation}{0}",
+      // Every choice numbers alike; the paper's numbers depend on what precedes the passage.
+      "\\setcounter{equation}{0}\\setcounter{figure}{0}\\setcounter{table}{0}",
       `\\setbox0=\\vbox{\\hsize=${width}\\columnwidth=\\hsize\\linewidth=\\hsize\\parindent=0pt\\relax`,
     );
     const start = lines.length + 1;
-    lines.push(...choice.split("\n"));
+    lines.push(...balanceEnvironments(choice).split("\n"));
     // TeX reports an unclosed group or formula on the line that ends the box.
     const end = lines.length + 1;
     lines.push(
@@ -51,6 +57,27 @@ export function snippetSource(input: {
   });
   lines.push("\\end{document}", "");
   return { tex: lines.join("\n"), ranges };
+}
+
+/**
+ * A passage with every environment it opens or closes completed, since a passage can start or end
+ * inside a figure or a list that the rest of the file completes.
+ */
+export function balanceEnvironments(latex: string) {
+  const open: string[] = [];
+  const unopened: string[] = [];
+  for (const [, kind, name] of latex
+    .replace(/(?<!\\)%.*$/gm, "")
+    .matchAll(/\\(begin|end)\{([^}]+)\}/g)) {
+    if (kind === "begin") open.push(name!);
+    else if (open.at(-1) === name) open.pop();
+    else unopened.push(name!);
+  }
+  return [
+    ...unopened.toReversed().map((name) => `\\begin{${name}}`),
+    latex,
+    ...open.toReversed().map((name) => `\\end{${name}}`),
+  ].join("\n");
 }
 
 /**
