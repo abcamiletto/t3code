@@ -24,22 +24,28 @@ export function proposalText(
 }
 
 /**
- * A proposal's status follows the file: the author may undo an applied option or restore the
- * original in their editor. An applied option edited further stays applied, without a location.
- * Only dismissal is a choice the file cannot show.
+ * A proposal's status follows the file: the author may undo an applied option in their editor,
+ * and the agent may write an option itself. An applied option edited further stays applied,
+ * without a location. Only dismissal is a choice the file cannot show.
  */
 export function reconcile(
   proposal: PaperProposal,
   source: string,
-): { readonly status: PaperProposalStatus; readonly range?: TextRange } {
+): {
+  readonly status: PaperProposalStatus;
+  readonly appliedOption?: number;
+  readonly range?: TextRange;
+} {
   if (proposal.status === "dismissed") return { status: "dismissed" };
+  const { appliedOption } = proposal;
+  const applied = appliedOption === undefined ? undefined : locate(source, proposalText(proposal));
+  if (applied) return { status: "applied", appliedOption: appliedOption!, range: applied };
   const original = locate(source, proposal.original);
-  if (proposal.appliedOption !== undefined) {
-    const applied = locate(source, proposalText(proposal));
-    if (applied) return { status: "applied", range: applied };
-    if (!original) return { status: "applied" };
-  }
-  return original ? { status: "pending", range: original } : { status: "stale" };
+  if (original) return { status: "pending", range: original };
+  const options = proposal.options.map((option) => locate(source, option.latex));
+  const found = options.findIndex((range) => range !== undefined);
+  if (found !== -1) return { status: "applied", appliedOption: found, range: options[found]! };
+  return appliedOption === undefined ? { status: "stale" } : { status: "applied", appliedOption };
 }
 
 const lineAt = (source: string, offset: number) => lineCount(source.slice(0, offset));
