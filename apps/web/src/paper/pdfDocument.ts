@@ -1,6 +1,12 @@
+import type { ScopedThreadRef } from "@t3tools/contracts";
+import { resolveWorkspaceFilePath } from "@t3tools/shared/path";
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useState } from "react";
+
+import { useAssetUrlState } from "~/assets/assetUrls";
+import { workspaceAssetResource } from "~/components/files/filePreviewMode";
+import type { DraftId } from "~/composerDraftStore";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -78,4 +84,30 @@ export function usePaperDocument(url: string | null) {
     document: state.document,
     failed: url !== null && state.failedUrl === url,
   };
+}
+
+/** A URL for a workspace-relative Paper file; the revision busts caches between builds. */
+export function usePaperFileUrl(
+  threadRef: ScopedThreadRef,
+  cwd: string,
+  composerDraftTarget: ScopedThreadRef | DraftId,
+  file: string | null,
+  revision: number,
+) {
+  const asset = useAssetUrlState(
+    threadRef.environmentId,
+    file === null
+      ? null
+      : workspaceAssetResource({
+          kind: "workspace-file",
+          threadRef,
+          draft: typeof composerDraftTarget === "string",
+          workspaceRoot: cwd,
+          absolutePath: resolveWorkspaceFilePath(file, cwd),
+        }),
+  );
+  if (asset._tag !== "Success") return null;
+  const url = new URL(asset.url);
+  url.searchParams.set("revision", String(revision));
+  return url.href;
 }
