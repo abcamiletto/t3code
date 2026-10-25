@@ -40,15 +40,17 @@ you switch. While the agent keeps working, the option you are looking at stays o
 the paper's new version is typeset. New proposals never interrupt a review: **Review** in the
 toolbar and the blue marks in the PDF margin open them.
 
-- **Apply** writes the option to the source file. Applying another option replaces it; **Undo**
-  restores the original text.
+- **Apply** writes the option to the source file, requests a rebuild, and returns to the current
+  paper. Applying another option replaces it; **Undo** restores the original text.
 - **Dismiss** hides a proposal; **Restore** brings it back.
 - **Reply** adds feedback on the proposal to your message, with all its options. Send it, and the
   agent answers with revised options that replace the pending ones.
 
 A proposal follows the file: if you undo an applied option in your editor, it is pending again,
 and if an option is written into the file another way, for example by the agent, it shows as
-applied. If the passage changes otherwise, the proposal can no longer be applied; **Reply** asks
+applied. Accepted insertions stay applied after further edits, even when their original anchor
+still exists; use **Undo** to reopen them. Alternative PDFs are labeled as previews, with a button
+to return to the current paper. If the passage changes otherwise, the proposal can no longer be applied; **Reply** asks
 the agent for a revised one.
 
 ## Agent tools

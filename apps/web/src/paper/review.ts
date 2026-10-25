@@ -83,6 +83,6 @@ export function chooseOption(proposalId: string, choice: PaperChoice) {
 
 /** Opens the Paper panel, optionally reviewing one proposal. */
 export function openPaper(threadRef: ScopedThreadRef, proposalId?: string) {
-  if (proposalId !== undefined) focusProposal(threadRef, proposalId);
+  focusProposal(threadRef, proposalId ?? null);
   useRightPanelStore.getState().open(threadRef, "paper");
 }

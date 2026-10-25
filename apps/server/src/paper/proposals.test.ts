@@ -55,6 +55,17 @@ describe("reconcile", () => {
     });
   });
 
+  it("recognizes an insertion whose option retains the original anchor", () => {
+    const inserted = { ...proposal, options: [{ latex: `Added text. ${proposal.original}` }] };
+    expect(reconcile(inserted, source(inserted.options[0]!.latex)).status).toBe("applied");
+    expect(
+      reconcile(
+        { ...inserted, status: "applied", appliedOption: 0 },
+        source(`Edited text. ${proposal.original}`),
+      ),
+    ).toEqual({ status: "applied", appliedOption: 0 });
+  });
+
   it("keeps a dismissal", () => {
     expect(reconcile({ ...proposal, status: "dismissed" }, source("x")).status).toBe("dismissed");
   });

@@ -294,6 +294,24 @@ function PaperWorkspace(props: PanelProps & { readonly state: PaperState }) {
       {problemsOpen && build.diagnostics.length > 0 ? (
         <Problems threadRef={threadRef} diagnostics={build.diagnostics} />
       ) : null}
+      {variant ? (
+        <div
+          role="status"
+          className="flex shrink-0 items-center justify-between gap-2 border-b bg-muted/50 px-3 py-1.5 text-xs"
+        >
+          <span>
+            Previewing {choiceLabel(choice).toLowerCase()}. This is not the current paper.
+          </span>
+          <Button size="xs" variant="ghost" onClick={() => focusProposal(threadRef, null)}>
+            Return to current paper
+          </Button>
+        </div>
+      ) : null}
+      {failed && document ? (
+        <div role="alert" className="shrink-0 border-b px-3 py-1.5 text-xs text-destructive">
+          Could not load the latest PDF. The previous PDF is still shown; rebuild to try again.
+        </div>
+      ) : null}
       {build.outdated && build.pdf !== null ? (
         <div
           role="status"

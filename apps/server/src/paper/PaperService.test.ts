@@ -96,6 +96,10 @@ const fakeTectonic = (
                   yield* fs.writeFileString(path.join(outDir, "main.aux"), "\\relax\n");
                   if (fail()) {
                     yield* fs.writeFileString(
+                      path.join(outDir, "main.pdf"),
+                      "%PDF partial failed build",
+                    );
+                    yield* fs.writeFileString(
                       path.join(outDir, "main.log"),
                       "./main.tex:3: Undefined control sequence.\n",
                     );
@@ -182,9 +186,21 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
     }).pipe(Effect.scoped),
   );
 
+  it.effect("does not reuse PDF revisions from an earlier workspace session", () =>
+    Effect.gen(function* () {
+      const { cwd, paper, fs, path } = yield* setup();
+      yield* fs.makeDirectory(path.join(cwd, ".t3-paper"));
+      const published = path.join(cwd, ".t3-paper/main.pdf");
+      yield* fs.writeFileString(published, "%PDF previous session");
+      const { build } = yield* paper.current(cwd, THREAD);
+      expect(build.revision).toBeGreaterThan(2);
+      expect(yield* fs.readFileString(published)).toBe("%PDF 1");
+    }).pipe(Effect.scoped),
+  );
+
   it.effect("applies, reopens and dismisses proposals by editing the file", () =>
     Effect.gen(function* () {
-      const { cwd, paper, read } = yield* setup();
+      const { cwd, paper, read, calls } = yield* setup();
       yield* paper.current(cwd, THREAD);
       const proposal = yield* paper.propose({
         cwd,
@@ -205,6 +221,10 @@ it.layer(NodeServices.layer)("PaperService", (it) => {
       });
       expect(applied).toMatchObject({ status: "applied", appliedOption: 1 });
       expect(yield* read("main.tex")).toContain("A shorter one.");
+      const builds = calls.length;
+      yield* paper.current(cwd, THREAD);
+      expect(calls.length).toBeGreaterThan(builds);
+      expect(calls.at(-1)!.main).toContain("A shorter one.");
 
       const switched = yield* paper.resolve({
         cwd,

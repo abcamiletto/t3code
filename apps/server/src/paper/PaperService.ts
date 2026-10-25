@@ -189,7 +189,14 @@ const make = Effect.gen(function* () {
       build: {
         status: "idle",
         pdf: hasPdf ? published : null,
-        revision: hasPdf ? 1 : 0,
+        revision: hasPdf
+          ? Math.max(
+              1,
+              Option.getOrUndefined(
+                (yield* io(fs.stat(path.join(cwd, published!)))).mtime,
+              )?.getTime() ?? 1,
+            )
+          : 0,
         outdated: false,
         diagnostics: [],
       },
@@ -296,8 +303,9 @@ const make = Effect.gen(function* () {
         return;
       }
       const stem = path.basename(mainFile, ".tex");
-      const published = yield* publish(result, stem);
       const failed = result.diagnostics.some((entry) => entry.severity === "error");
+      const published = !failed && (yield* publish(result, stem));
+      const revision = yield* Clock.currentTimeMillis;
       yield* lock.withPermits(1)(
         Effect.gen(function* () {
           const current = yield* SubscriptionRef.get(state);
@@ -309,7 +317,9 @@ const make = Effect.gen(function* () {
         build: {
           status: failed ? "failed" : "succeeded",
           pdf: published ? `${PAPER_DIRECTORY}/${stem}.pdf` : current.build.pdf,
-          revision: current.build.revision + (published ? 1 : 0),
+          revision: published
+            ? Math.max(current.build.revision + 1, revision)
+            : current.build.revision,
           outdated: !published && failed,
           diagnostics: result.diagnostics,
           durationMs,
@@ -464,7 +474,7 @@ const make = Effect.gen(function* () {
         };
         return { status: "failed", diagnostics: [missing] } satisfies PaperPreview;
       }
-      if (result.pdf === null)
+      if (result.pdf === null || result.diagnostics.some((entry) => entry.severity === "error"))
         return { status: "failed", diagnostics: result.diagnostics } satisfies PaperPreview;
       const relative = `${PAPER_DIRECTORY}/previews/${file}`;
       yield* io(
@@ -707,7 +717,10 @@ const make = Effect.gen(function* () {
             source.slice(0, start) + proposalText(next) + source.slice(start + current.length);
           yield* io(fs.writeFileString(file.absolute, contents));
           const [refreshed] = yield* workspace.refresh([next]);
-          return yield* replaceProposal(workspace, refreshed ?? next);
+          const resolved = yield* replaceProposal(workspace, refreshed ?? next);
+          // Applying and undoing must rebuild even before the file watcher delivers its event.
+          yield* workspace.requestBuild;
+          return resolved;
         }).pipe(workspace.lock.withPermits(1)),
       );
     }),
