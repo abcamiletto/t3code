@@ -1,11 +1,11 @@
 import { useAtomValue } from "@effect/atom-react";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import type { PaperProposal, PaperProposalAction, ScopedThreadRef } from "@t3tools/contracts";
 import { useState } from "react";
 
 import { formatEnvironmentQueryError } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { focusProposal, usePaperReview } from "./review";
-import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { paperEnvironment } from "./state";
 
 /** Apply, dismiss and reopen for one proposal, with the pending state and the last error. */

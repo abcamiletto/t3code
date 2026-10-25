@@ -50,8 +50,8 @@ A proposal follows the file: if you undo an applied option in your editor, it is
 and if an option is written into the file another way, for example by the agent, it shows as
 applied. Accepted insertions stay applied after further edits, even when their original anchor
 still exists; use **Undo** to reopen them. Alternative PDFs are labeled as previews, with a button
-to return to the current paper. If the passage changes otherwise, the proposal can no longer be applied; **Reply** asks
-the agent for a revised one.
+to return to the current paper. If the passage changes otherwise, the proposal can no longer be
+applied; **Reply** asks the agent for a revised one.
 
 ## Agent tools
 
