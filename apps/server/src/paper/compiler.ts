@@ -19,12 +19,8 @@ export interface CompileResult {
 }
 
 /**
- * Builds `mainFile` in `cwd` with Tectonic, the one compiler Paper supports: a single binary that
- * fetches packages on demand and runs BibTeX and reruns itself. A `Tectonic.toml` selects a
- * project build, so its bundle and inputs apply. Returns `null` when Tectonic is not installed.
- *
- * `warm` makes one TeX pass that reads the `.aux` and `.bbl` files placed beside the document,
- * which is how previews reuse the last full build.
+ * Builds with the project's Tectonic configuration; returns null if Tectonic is unavailable.
+ * Warm previews reuse the last full build's auxiliary files in one TeX pass.
  */
 export const compile = Effect.fn("Paper.compile")(function* (
   cwd: string,

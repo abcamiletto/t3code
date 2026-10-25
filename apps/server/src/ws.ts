@@ -558,7 +558,6 @@ const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
 // Paper's handlers live in their own layer; see PaperRpcGroup.
 const CoreWsRpcGroup = ServerWsRpcGroup.omit(...Object.values(PAPER_WS_METHODS));
 
-
 // RpcGroup.toLayer derives each handler's requirements by scanning every RPC in
 // the group, so its type cost grows with handlers × RPCs. Near 200 methods that
 // crosses TypeScript's instantiation limit and the layer's requirements degrade to
