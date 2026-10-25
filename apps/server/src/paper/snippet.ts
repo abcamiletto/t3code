@@ -7,11 +7,8 @@ const MARGIN = 2;
 const PDF_POINTS_PER_TEX_POINT = 72 / 72.27;
 
 /**
- * A standalone document that typesets each choice of a proposal on a page of its own, cut to the
- * text. It loads the paper's preamble and the last build's citations and labels, so macros,
- * packages, `\cite` and `\ref` render as they do in the paper. Text is set `width` PDF points
- * wide, the passage's line width in the paper; classes such as acmart only switch to two columns
- * after the preamble, so `\columnwidth` is not reliable here.
+ * Typesets choices on separate cropped pages with the paper's preamble and references.
+ * Use the passage's PDF width: classes may only set columnwidth after the preamble.
  */
 export function snippetSource(input: {
   readonly preamble: string;

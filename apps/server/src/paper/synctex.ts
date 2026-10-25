@@ -1,12 +1,8 @@
 import type { PaperPdfBox } from "@t3tools/contracts";
 
 /**
- * A reader for the SyncTeX files pdfLaTeX, XeLaTeX, LuaLaTeX and Tectonic write next to the PDF.
- * Parsing in-process avoids requiring the separate `synctex` command, which Tectonic does not ship.
- *
- * TeX records a typeset line as an hbox tagged with the source line where its paragraph ended,
- * so line boxes alone cannot tell which source line a word came from. The glue, kern, math and
- * position records inside a line carry their own source lines; both searches read those.
+ * Reads SyncTeX without a separate executable. Inner position records retain source lines;
+ * line boxes alone point to the end of a paragraph.
  */
 
 interface LineBox {
