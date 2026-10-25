@@ -34,13 +34,10 @@ const renderViewer = (props: Parameters<typeof Viewer>[0]) => {
 it("turns a text selection into boxes in PDF points", async () => {
   const onSelectText = vi.fn<(selection: PdfTextSelection | null) => void>();
   await using _screen = await renderViewer({ marks: [], onSelectText });
-  const span = await vi.waitFor(() => {
-    const found = [...document.querySelectorAll("[data-paper-text-layer] span")].find((node) =>
-      node.textContent?.includes("selection"),
-    );
-    if (!found?.firstChild) throw new Error("The text layer has not rendered.");
-    return found;
-  });
+  await expect.element(page.getByText("Paper turns a selection into a comment.")).toBeVisible();
+  const span = [...document.querySelectorAll("[data-paper-text-layer] span")].find((node) =>
+    node.textContent?.includes("selection"),
+  )!;
   const range = document.createRange();
   range.selectNodeContents(span.firstChild!);
   getSelection()!.removeAllRanges();
