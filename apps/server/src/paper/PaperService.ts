@@ -189,14 +189,7 @@ const make = Effect.gen(function* () {
       build: {
         status: "idle",
         pdf: hasPdf ? published : null,
-        revision: hasPdf
-          ? Math.max(
-              1,
-              Option.getOrUndefined(
-                (yield* io(fs.stat(path.join(cwd, published!)))).mtime,
-              )?.getTime() ?? 1,
-            )
-          : 0,
+        revision: yield* Clock.currentTimeMillis,
         outdated: false,
         diagnostics: [],
       },
