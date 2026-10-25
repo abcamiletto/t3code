@@ -27,6 +27,7 @@ const handlers = {
     Effect.gen(function* () {
       const { cwd, threadId } = yield* callingWorkspace("paper_status");
       const paper = yield* PaperService.PaperService;
+      yield* paper.build(cwd).pipe(Effect.mapError(toFailure));
       const state = yield* paper.current(cwd, threadId).pipe(Effect.mapError(toFailure));
       return {
         mainFile: state.mainFile,

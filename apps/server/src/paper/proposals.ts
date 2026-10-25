@@ -40,11 +40,14 @@ export function reconcile(
   const { appliedOption } = proposal;
   const applied = appliedOption === undefined ? undefined : locate(source, proposalText(proposal));
   if (applied) return { status: "applied", appliedOption: appliedOption!, range: applied };
-  const original = locate(source, proposal.original);
-  if (original) return { status: "pending", range: original };
   const options = proposal.options.map((option) => locate(source, option.latex));
   const found = options.findIndex((range) => range !== undefined);
   if (found !== -1) return { status: "applied", appliedOption: found, range: options[found]! };
+  const original = locate(source, proposal.original);
+  // An insertion keeps its anchor even after acceptance and subsequent editing.
+  if (appliedOption !== undefined && proposalText(proposal).includes(proposal.original))
+    return { status: "applied", appliedOption };
+  if (original) return { status: "pending", range: original };
   return appliedOption === undefined ? { status: "stale" } : { status: "applied", appliedOption };
 }
 

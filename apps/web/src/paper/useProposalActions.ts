@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { formatEnvironmentQueryError } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { focusProposal, usePaperReview } from "./review";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { paperEnvironment } from "./state";
 
 /** Apply, dismiss and reopen for one proposal, with the pending state and the last error. */
@@ -27,6 +29,10 @@ export function useProposalActions(
     });
     setBusy(false);
     if (result._tag === "Failure") setError(formatEnvironmentQueryError(result.cause));
+    else if (
+      usePaperReview.getState().focused[scopedThreadKey(threadRef)]?.proposalId === proposal.id
+    )
+      focusProposal(threadRef, null);
   };
   return {
     enabled: canWrite && !busy,
