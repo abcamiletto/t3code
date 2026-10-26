@@ -71,6 +71,7 @@ function ChoicePage(props: {
 }) {
   const { document, number, page } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // oxlint-disable-next-line t3code/react-effect-budget -- PDF.js paints the canvas asynchronously and must cancel rendering on unmount.
   useEffect(() => {
     if (document === null) return;
     let cancelled = false;

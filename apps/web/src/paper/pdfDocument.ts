@@ -64,6 +64,7 @@ export function usePaperDocument(url: string | null) {
     readonly document: PaperDocument | null;
     readonly failedUrl: string | null;
   }>({ document: null, failedUrl: null });
+  // oxlint-disable-next-line t3code/react-effect-budget -- Retain and release an external PDF.js document as its URL changes.
   useEffect(() => {
     if (url === null) return;
     let active = true;
