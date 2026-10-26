@@ -19,6 +19,7 @@ export function PdfPage(props: {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const size = document.pages[page - 1]!;
+  // oxlint-disable-next-line t3code/react-effect-budget -- PDF.js owns canvas and text-layer DOM work and must cancel it on unmount.
   useEffect(() => {
     let cancelled = false;
     let render: RenderTask | undefined;

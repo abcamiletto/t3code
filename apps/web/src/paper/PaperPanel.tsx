@@ -116,6 +116,7 @@ function PaperWorkspace(props: PanelProps & { readonly state: PaperState }) {
         : null));
   const shownKey = focused ? previewKey(focused.id, choice) : null;
   const kept = usePaperReview((review) => (shownKey ? review.previews[shownKey] : undefined));
+  // oxlint-disable-next-line t3code/react-effect-budget -- Retain completed asynchronous previews in the shared review store.
   useEffect(() => {
     if (fresh && shownKey) keepPreview(shownKey, fresh);
   }, [fresh, shownKey]);
@@ -370,6 +371,7 @@ function usePassageBoxes(
     readonly key: string;
     readonly boxes: PaperPdfBox[] | null;
   } | null>(null);
+  // oxlint-disable-next-line t3code/react-effect-budget -- Read PDF.js text asynchronously when the document or passage changes.
   useEffect(() => {
     if (key === null || document === null) return;
     const [, text, boxes] = JSON.parse(key) as [string, string, PaperPdfBox[]];
