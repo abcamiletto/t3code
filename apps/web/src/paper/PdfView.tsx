@@ -73,7 +73,7 @@ export function PdfView(props: {
       : [],
   );
 
-  // oxlint-disable-next-line t3code/react-effect-budget -- Subscribe to the PDF scroll container’s external resize observer.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Subscribe to the PDF scroll container’s external resize observer.
   useEffect(
     () =>
       observeResize(scrollRef.current!, ([entry]) =>
@@ -103,7 +103,7 @@ export function PdfView(props: {
 
   // Runs after every render and scrolls only when the anchored text moved: a new build, another
   // alternative, a zoom, or a new anchor. Scrolling updates the stored position first.
-  // oxlint-disable-next-line t3code/react-effect-budget -- Synchronize the DOM scroll position after PDF layout changes, before paint.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Synchronize the DOM scroll position after PDF layout changes, before paint.
   useLayoutEffect(() => {
     const element = scrollRef.current!;
     if (viewport.width === 0 || layout.length === 0) return;
