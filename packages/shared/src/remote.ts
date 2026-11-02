@@ -1,10 +1,11 @@
 import * as Schema from "effect/Schema";
+import { forkIdentity } from "./forkIdentity.ts";
 
 const PAIRING_TOKEN_PARAM = "token";
 const HOSTED_PAIRING_HOST_PARAM = "host";
 const HOSTED_PAIRING_LABEL_PARAM = "label";
 const PAIRING_APP_LINK_PARAM = "pairingUrl";
-const APP_LINK_PROTOCOL = /^t3code(?:-[a-z]+)?:$/;
+const APP_LINK_PROTOCOL = new RegExp(`^${forkIdentity.scheme}(?:-[a-z]+)?:$`);
 const SUPPORTED_REMOTE_BACKEND_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 
 export const readHashParams = (url: URL): URLSearchParams =>
@@ -187,11 +188,11 @@ export const readHostedPairingRequest = (url: URL): HostedPairingRequest | null 
   };
 };
 
-/** Wraps a pairing URL in the `t3code://pair` link that desktop opens and mobile scans. */
+/** Wraps a pairing URL in the app link that desktop opens and mobile scans. */
 export const buildPairingAppLink = (pairingUrl: string): string =>
-  `t3code://pair?${new URLSearchParams([[PAIRING_APP_LINK_PARAM, pairingUrl]])}`;
+  `${forkIdentity.scheme}://pair?${new URLSearchParams([[PAIRING_APP_LINK_PARAM, pairingUrl]])}`;
 
-/** Reads the pairing URL from a `t3code://pair` link on any app channel scheme. */
+/** Reads the pairing URL from an app link on any channel scheme. */
 export const readPairingAppLink = (value: string): string | null => {
   if (!URL.canParse(value)) return null;
   const url = new URL(value);
