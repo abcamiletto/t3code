@@ -175,7 +175,7 @@ function PaperWorkspace(props: PanelProps & { readonly state: PaperState }) {
       ? [
           {
             key: `focus:${focused.id}`,
-            boxes: passage === undefined ? [] : (passage ?? focusBoxes),
+            boxes: passage ?? [],
             tone: "focus" as const,
           },
         ]
